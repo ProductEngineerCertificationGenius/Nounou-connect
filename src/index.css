@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    @apply font-display text-ink;
+  }
+  :focus-visible {
+    outline: 2px solid #14594a;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Élément signature : le sceau de confiance, décliné sur chaque
+     profil garanti par une agence. Concentric ring + coche, en écho
+     au badge de confiance décrit dans le cahier des charges. */
+  .trust-seal {
+    @apply relative inline-flex items-center justify-center rounded-full;
+    background: radial-gradient(circle at 35% 30%, #1e5c95, #123a61);
+  }
+  .trust-seal::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: 9999px;
+    border: 1.5px solid #1e8f6d;
+  }
+
+  .card {
+    @apply rounded-card border border-line bg-white p-4 shadow-card;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-[13px] font-medium text-ink/70;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-[15px] text-ink placeholder:text-muted focus:border-palm focus:outline-none;
+  }
+
+  .btn-primary {
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-lg bg-palm px-4 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-palm-dark disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 py-3 text-[15px] font-semibold text-ink transition-colors hover:bg-ecru;
+  }
+
+  .btn-whatsapp {
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#1E7A5F] px-4 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#175f4a];
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-full border border-line bg-ecru px-2.5 py-1 text-xs text-ink/70;
+  }
+}
