@@ -1,11 +1,11 @@
 import { useNounou } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
 import Stars from "../../components/ui/Stars";
 import EmptyState from "../../components/ui/EmptyState";
 
-const CURRENT_NOUNOU_ID = "n-1";
-
 export default function Reviews() {
-  const { data: nounou } = useNounou(CURRENT_NOUNOU_ID);
+  const nounouId = useAuthStore((s) => s.user?.id);
+  const { data: nounou } = useNounou(nounouId);
 
   return (
     <div>

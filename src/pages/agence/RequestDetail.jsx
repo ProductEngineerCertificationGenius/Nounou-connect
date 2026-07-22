@@ -1,16 +1,16 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useDemande, useNounousByAgence, useAssignerNounou } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
 import Avatar from "../../components/ui/Avatar";
 import EmptyState from "../../components/ui/EmptyState";
-
-const CURRENT_AGENCE_ID = "ag-1";
 
 export default function RequestDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const agenceId = useAuthStore((s) => s.user?.id);
   const { data: demande, isLoading } = useDemande(id);
-  const { data: nounous } = useNounousByAgence(CURRENT_AGENCE_ID);
-  const { mutate: assigner, isPending } = useAssignerNounou();
+  const { data: nounous } = useNounousByAgence(agenceId);
+  const { mutate: assigner, isPending, error: assignError } = useAssignerNounou();
 
   if (isLoading || !demande) return <p className="text-sm text-ink/50">Chargement...</p>;
 
@@ -45,6 +45,11 @@ export default function RequestDetail() {
           <h2 className="mb-3 font-display text-base font-semibold">
             Assigner une nounou disponible
           </h2>
+          {assignError && (
+            <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+              {assignError.message}
+            </p>
+          )}
           {disponibles.length === 0 ? (
             <EmptyState
               title="Aucune nounou disponible"
@@ -64,7 +69,7 @@ export default function RequestDetail() {
                   <button
                     className="btn-primary w-auto px-4 py-2 text-sm"
                     disabled={isPending}
-                    onClick={() => assigner({ demandeId: demande.id, nounouNom: n.nom })}
+                    onClick={() => assigner({ demandeId: demande.id, nounouId: n.id })}
                   >
                     Assigner
                   </button>

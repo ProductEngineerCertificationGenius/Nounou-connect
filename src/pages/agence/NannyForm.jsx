@@ -1,6 +1,8 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useNounou } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
+import { supabase, isSupabaseConfigured } from "../../lib/supabaseClient";
 import { QUARTIERS } from "../../data/mockData";
 import Field from "../../components/ui/Field";
 import Select from "../../components/ui/Select";
@@ -10,9 +12,11 @@ import { useState, useEffect } from "react";
 export default function NannyForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const agenceId = useAuthStore((s) => s.user?.id);
   const isEditing = Boolean(id);
   const { data: existing } = useNounou(id);
   const [disponible, setDisponible] = useState(true);
+  const [serverError, setServerError] = useState("");
 
   const {
     register,
@@ -35,9 +39,32 @@ export default function NannyForm() {
   }, [existing, reset]);
 
   const onSubmit = async (data) => {
-    // TODO Supabase : insert/update dans la table `nounous`
-    // (upsert selon isEditing), avec agence_id = agence authentifiée.
-    console.info("[demo] Nounou enregistrée", { ...data, disponible });
+    setServerError("");
+    const langues = data.langues.split(",").map((l) => l.trim()).filter(Boolean);
+
+    if (!isSupabaseConfigured) {
+      console.info("[demo] Nounou enregistrée", { ...data, langues, disponible });
+      navigate("/agence/vivier");
+      return;
+    }
+
+    const payload = {
+      nom: data.nom,
+      experience: data.experience,
+      langues,
+      tarif: Number(data.tarif),
+      quartier: data.quartier,
+      disponible,
+    };
+
+    const { error } = isEditing
+      ? await supabase.from("nounous").update(payload).eq("id", id)
+      : await supabase.from("nounous").insert({ ...payload, agence_id: agenceId });
+
+    if (error) {
+      setServerError(error.message);
+      return;
+    }
     navigate("/agence/vivier");
   };
 
@@ -52,6 +79,10 @@ export default function NannyForm() {
       <p className="mb-6 text-sm text-ink/60">
         Ces informations sont visibles par les familles en recherche.
       </p>
+
+      {serverError && (
+        <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{serverError}</p>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <Field label="Nom" error={errors.nom?.message}>

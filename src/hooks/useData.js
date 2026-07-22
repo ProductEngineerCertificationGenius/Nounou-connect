@@ -15,9 +15,19 @@ export function useAgences(filters = {}) {
     queryKey: ["agences", filters],
     queryFn: async () => {
       if (isSupabaseConfigured) {
-        let query = supabase.from("agences").select("*");
-        if (filters.quartier) query = query.eq("quartier", filters.quartier);
-        const { data, error } = await query;
+        if (filters.quartier) {
+          // rechercher_agences (cf. 0003_functions.sql) : ne renvoie que les
+          // agences ayant au moins une nounou disponible dans ce quartier,
+          // triées par note. Plus pertinent qu'un simple filtre sur
+          // agences.quartier (qui est le quartier du siège, pas des nounous).
+          const { data, error } = await supabase.rpc("rechercher_agences", {
+            p_quartier: filters.quartier,
+            p_besoin: filters.besoin ?? null,
+          });
+          if (error) throw error;
+          return data;
+        }
+        const { data, error } = await supabase.from("agences").select("*");
         if (error) throw error;
         return data;
       }
@@ -131,20 +141,25 @@ export function useDemande(id) {
 export function useAssignerNounou() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ demandeId, nounouNom }) => {
+    // NB : on passe nounouId (uuid), pas le nom. On appelle la fonction RPC
+    // `assigner_nounou` (cf. 0003_functions.sql) plutôt qu'un update direct :
+    // elle garantit côté serveur que la nounou est disponible et appartient
+    // bien à l'agence de la demande (sinon exception -> throw ici).
+    mutationFn: async ({ demandeId, nounouId }) => {
       if (isSupabaseConfigured) {
-        const { error } = await supabase
-          .from("demandes")
-          .update({ statut: "Assignée", nounou_assignee: nounouNom })
-          .eq("id", demandeId);
+        const { data, error } = await supabase.rpc("assigner_nounou", {
+          p_demande_id: demandeId,
+          p_nounou_id: nounouId,
+        });
         if (error) throw error;
-        return true;
+        return data;
       }
       await wait(200);
       const demande = DEMANDES.find((d) => d.id === demandeId);
-      if (demande) {
+      const nounou = NOUNOUS.find((n) => n.id === nounouId);
+      if (demande && nounou) {
         demande.statut = "Assignée";
-        demande.nounouAssignee = nounouNom;
+        demande.nounouAssignee = nounou.nom;
       }
       return true;
     },
@@ -175,17 +190,52 @@ export function useRecherchesHistorique() {
 
 export function useEnregistrerAvis() {
   return useMutation({
-    mutationFn: async ({ nounouId, note, commentaire }) => {
+    // menageId est requis : colonne NOT NULL et exigée par la policy RLS
+    // "avis_insert_menage" (with check menage_id in (select id from
+    // menages where user_id = auth.uid())).
+    mutationFn: async ({ nounouId, menageId, note, commentaire }) => {
       if (isSupabaseConfigured) {
+        if (!menageId) {
+          throw new Error("Impossible d'enregistrer l'avis : ménage non identifié.");
+        }
         const { error } = await supabase
           .from("avis")
-          .insert({ nounou_id: nounouId, note, commentaire });
+          .insert({ nounou_id: nounouId, menage_id: menageId, note, commentaire });
         if (error) throw error;
         return true;
       }
       await wait(200);
-      console.info("[demo] Avis enregistré", { nounouId, note, commentaire });
+      console.info("[demo] Avis enregistré", { nounouId, menageId, note, commentaire });
       return true;
+    },
+  });
+}
+
+export function useEnregistrerRecherche() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ menageId, quartier, besoin, temps, logement }) => {
+      if (isSupabaseConfigured) {
+        if (!menageId) return null; // pas connecté : pas d'historique à tracer
+        const { error } = await supabase
+          .from("recherches")
+          .insert({ menage_id: menageId, quartier, besoin, temps, logement });
+        if (error) throw error;
+        return true;
+      }
+      await wait(100);
+      RECHERCHES_HISTORIQUE.unshift({
+        id: `r-${Date.now()}`,
+        quartier,
+        besoin,
+        temps,
+        logement,
+        date: new Date().toISOString(),
+      });
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recherches-historique"] });
     },
   });
 }

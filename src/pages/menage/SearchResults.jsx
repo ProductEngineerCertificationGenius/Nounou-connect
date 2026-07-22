@@ -6,7 +6,8 @@ import EmptyState from "../../components/ui/EmptyState";
 export default function SearchResults() {
   const [params] = useSearchParams();
   const quartier = params.get("quartier");
-  const { data: agences, isLoading } = useAgences({ quartier });
+  const besoin = params.get("besoin");
+  const { data: agences, isLoading } = useAgences({ quartier, besoin });
 
   return (
     <div>

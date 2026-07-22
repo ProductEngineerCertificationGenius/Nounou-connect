@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useNounou, useAgence } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
 import Avatar from "../../components/ui/Avatar";
 import Stars from "../../components/ui/Stars";
 import TrustSeal from "../../components/ui/TrustSeal";
@@ -12,6 +13,9 @@ export default function NannyProfile() {
   const { data: nounou, isLoading } = useNounou(id);
   const { data: agence } = useAgence(nounou?.agenceId);
   const [showRating, setShowRating] = useState(false);
+  // user.id = id de la ligne `menages` du ménage connecté (posé au
+  // login/inscription), requis pour enregistrer un avis.
+  const menageId = useAuthStore((s) => s.user?.id);
 
   if (isLoading || !nounou) return <p className="text-sm text-ink/50">Chargement...</p>;
 
@@ -76,7 +80,9 @@ export default function NannyProfile() {
         </div>
       </div>
 
-      {showRating && <RatingModal nounou={nounou} onClose={() => setShowRating(false)} />}
+      {showRating && (
+        <RatingModal nounou={nounou} menageId={menageId} onClose={() => setShowRating(false)} />
+      )}
     </div>
   );
 }

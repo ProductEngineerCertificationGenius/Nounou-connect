@@ -1,14 +1,12 @@
 import { useNounousByAgence, useDemandes } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
 import StatCard from "../../components/ui/StatCard";
 import NannyCard from "../../components/ui/NannyCard";
 
-// TODO Supabase : remplacer par l'id de l'agence authentifiée
-// (issu de useAuthStore().user.agence_id) une fois l'auth branchée.
-const CURRENT_AGENCE_ID = "ag-1";
-
 export default function Dashboard() {
-  const { data: nounous } = useNounousByAgence(CURRENT_AGENCE_ID);
-  const { data: demandes } = useDemandes(CURRENT_AGENCE_ID);
+  const agenceId = useAuthStore((s) => s.user?.id);
+  const { data: nounous } = useNounousByAgence(agenceId);
+  const { data: demandes } = useDemandes(agenceId);
   const placements = demandes?.filter((d) => d.statut === "Assignée").length ?? 0;
 
   return (

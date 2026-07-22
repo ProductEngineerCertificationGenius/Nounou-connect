@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
 import { useDemandes } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
 import EmptyState from "../../components/ui/EmptyState";
-
-const CURRENT_AGENCE_ID = "ag-1";
 
 const STATUT_STYLE = {
   "En attente": "text-clay",
@@ -10,7 +9,8 @@ const STATUT_STYLE = {
 };
 
 export default function RequestsList() {
-  const { data: demandes, isLoading } = useDemandes(CURRENT_AGENCE_ID);
+  const agenceId = useAuthStore((s) => s.user?.id);
+  const { data: demandes, isLoading } = useDemandes(agenceId);
 
   return (
     <div>

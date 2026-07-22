@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useAuthStore } from "../../store/useAuthStore";
+import { isSupabaseConfigured } from "../../lib/supabaseClient";
 import Field from "../../components/ui/Field";
 
 export default function NounouSignup() {
   const navigate = useNavigate();
   const setUser = useAuthStore((s) => s.setUser);
+  const [serverError, setServerError] = useState("");
   const {
     register,
     handleSubmit,
@@ -13,11 +16,18 @@ export default function NounouSignup() {
   } = useForm();
 
   const onSubmit = async (data) => {
-    // TODO Supabase : auth.signUp (téléphone) + insert dans `nounous`
-    // rattachée à l'agence qui l'a présentée (si compte créé par l'agence,
-    // cette étape est sautée et gérée depuis l'écran Agence > Ajout nounou).
-    setUser(data);
-    navigate("/nounou/profil");
+    if (!isSupabaseConfigured) {
+      setUser(data);
+      navigate("/nounou/profil");
+      return;
+    }
+    // Auto-inscription impossible : `nounous.agence_id` est NOT NULL, donc
+    // une ligne ne peut être créée que par l'agence (écran Agence > Ajouter
+    // une nounou), qui associe user_id à un compte téléphone existant.
+    // Si votre agence vous a déjà inscrite, utilisez plutôt "Se connecter".
+    setServerError(
+      "L'inscription se fait uniquement via votre agence. Si elle vous a déjà ajoutée à son vivier, connectez-vous directement."
+    );
   };
 
   return (
@@ -31,6 +41,12 @@ export default function NounouSignup() {
           Optionnel — si votre agence vous a déjà inscrite, vous pouvez vous connecter
           directement.
         </p>
+
+        {serverError && (
+          <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            {serverError}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <Field label="Nom" error={errors.name?.message}>

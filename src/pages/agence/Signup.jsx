@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useAuthStore } from "../../store/useAuthStore";
+import { supabase, isSupabaseConfigured } from "../../lib/supabaseClient";
 import { QUARTIERS } from "../../data/mockData";
 import Field from "../../components/ui/Field";
 import Select from "../../components/ui/Select";
@@ -8,6 +10,7 @@ import Select from "../../components/ui/Select";
 export default function AgenceSignup() {
   const navigate = useNavigate();
   const setUser = useAuthStore((s) => s.setUser);
+  const [serverError, setServerError] = useState("");
   const {
     register,
     handleSubmit,
@@ -15,9 +18,21 @@ export default function AgenceSignup() {
   } = useForm();
 
   const onSubmit = async (data) => {
-    // TODO Supabase : auth.signUp (téléphone) + insert dans la table `agences`.
-    setUser(data);
-    navigate("/agence/tableau-de-bord");
+    if (!isSupabaseConfigured) {
+      setUser(data);
+      navigate("/agence/tableau-de-bord");
+      return;
+    }
+    setServerError("");
+    const { error } = await supabase.auth.signInWithOtp({ phone: data.phone });
+    if (error) {
+      setServerError(error.message);
+      return;
+    }
+    // La ligne `agences` est créée après vérification du code (cf. Login.jsx).
+    navigate("/connexion", {
+      state: { phone: data.phone, profileType: "agence", pendingProfile: data },
+    });
   };
 
   return (
@@ -30,6 +45,12 @@ export default function AgenceSignup() {
         <p className="mb-6 text-sm text-ink/60">
           Rendez votre vivier de nounous visible auprès des familles.
         </p>
+
+        {serverError && (
+          <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            {serverError}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <Field label="Nom de l'agence" error={errors.nom?.message}>

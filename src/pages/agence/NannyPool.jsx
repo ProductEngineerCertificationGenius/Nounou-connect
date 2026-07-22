@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
 import { useNounousByAgence } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
 import NannyCard from "../../components/ui/NannyCard";
 import EmptyState from "../../components/ui/EmptyState";
 
-const CURRENT_AGENCE_ID = "ag-1";
-
 export default function NannyPool() {
-  const { data: nounous, isLoading } = useNounousByAgence(CURRENT_AGENCE_ID);
+  const agenceId = useAuthStore((s) => s.user?.id);
+  const { data: nounous, isLoading } = useNounousByAgence(agenceId);
 
   return (
     <div>

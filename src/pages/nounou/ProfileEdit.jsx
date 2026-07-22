@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNounou } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
+import { supabase, isSupabaseConfigured } from "../../lib/supabaseClient";
 import { QUARTIERS } from "../../data/mockData";
 import Avatar from "../../components/ui/Avatar";
 import Field from "../../components/ui/Field";
 import Select from "../../components/ui/Select";
 import Toggle from "../../components/ui/Toggle";
 
-// TODO Supabase : remplacer par l'id de la nounou authentifiée.
-const CURRENT_NOUNOU_ID = "n-1";
-
 export default function ProfileEdit() {
-  const { data: nounou } = useNounou(CURRENT_NOUNOU_ID);
+  const nounouId = useAuthStore((s) => s.user?.id);
+  const { data: nounou, refetch } = useNounou(nounouId);
   const [disponible, setDisponible] = useState(true);
+  const [serverError, setServerError] = useState("");
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm();
 
   useEffect(() => {
@@ -28,8 +29,27 @@ export default function ProfileEdit() {
   }, [nounou, reset]);
 
   const onSubmit = async (data) => {
-    // TODO Supabase : update de la table `nounous` (profil + disponibilité).
-    console.info("[demo] Profil nounou mis à jour", { ...data, disponible });
+    setServerError("");
+    const langues = data.langues.split(",").map((l) => l.trim()).filter(Boolean);
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from("nounous")
+        .update({
+          experience: data.experience,
+          langues,
+          tarif: Number(data.tarif),
+          quartier: data.quartier,
+          disponible,
+        })
+        .eq("id", nounouId);
+      if (error) {
+        setServerError(error.message);
+        return;
+      }
+      refetch();
+      return;
+    }
+    console.info("[demo] Profil nounou mis à jour", { ...data, langues, disponible });
   };
 
   if (!nounou) return <p className="text-sm text-ink/50">Chargement...</p>;
@@ -52,6 +72,10 @@ export default function ProfileEdit() {
           Si désactivé, votre profil n'apparaîtra plus dans les nouvelles recherches.
         </p>
       </div>
+
+      {serverError && (
+        <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{serverError}</p>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <Field label="Expérience">

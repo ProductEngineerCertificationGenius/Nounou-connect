@@ -1,7 +1,6 @@
 import { useNounou } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
 import EmptyState from "../../components/ui/EmptyState";
-
-const CURRENT_NOUNOU_ID = "n-1";
 
 const STATUT_STYLE = {
   "En cours": "border-palm/30 bg-palm-light text-palm-dark",
@@ -9,7 +8,8 @@ const STATUT_STYLE = {
 };
 
 export default function AssignmentHistory() {
-  const { data: nounou } = useNounou(CURRENT_NOUNOU_ID);
+  const nounouId = useAuthStore((s) => s.user?.id);
+  const { data: nounou } = useNounou(nounouId);
 
   return (
     <div>

@@ -1,14 +1,21 @@
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { QUARTIERS, BESOINS, TEMPS_TRAVAIL, LOGEMENT } from "../../data/mockData";
+import { useEnregistrerRecherche } from "../../hooks/useData";
+import { useAuthStore } from "../../store/useAuthStore";
 import Field from "../../components/ui/Field";
 import Select from "../../components/ui/Select";
 
 export default function SearchForm() {
   const navigate = useNavigate();
   const { register, handleSubmit } = useForm();
+  const { mutate: enregistrerRecherche } = useEnregistrerRecherche();
+  const menageId = useAuthStore((s) => s.user?.id);
 
   const onSubmit = (data) => {
+    // Trace la recherche pour l'écran "Historique" (cf. SearchHistory.jsx) —
+    // jamais fait auparavant, l'historique restait vide.
+    enregistrerRecherche({ menageId, ...data });
     const params = new URLSearchParams(data).toString();
     navigate(`/menage/resultats?${params}`);
   };

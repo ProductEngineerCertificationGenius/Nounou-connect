@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useEnregistrerAvis } from "../../hooks/useData";
 import Avatar from "./Avatar";
 
-export default function RatingModal({ nounou, onClose }) {
+export default function RatingModal({ nounou, menageId, onClose }) {
   const [note, setNote] = useState(5);
   const [commentaire, setCommentaire] = useState("");
-  const { mutate, isPending, isSuccess } = useEnregistrerAvis();
+  const { mutate, isPending, isSuccess, error } = useEnregistrerAvis();
 
   const submit = (e) => {
     e.preventDefault();
-    mutate({ nounouId: nounou.id, note, commentaire });
+    mutate({ nounouId: nounou.id, menageId, note, commentaire });
   };
 
   return (
@@ -51,6 +51,11 @@ export default function RatingModal({ nounou, onClose }) {
               value={commentaire}
               onChange={(e) => setCommentaire(e.target.value)}
             />
+            {error && (
+              <p className="text-sm text-red-600">
+                {error.message || "Une erreur est survenue, réessayez."}
+              </p>
+            )}
             <div className="flex w-full gap-3">
               <button type="button" onClick={onClose} className="btn-secondary">
                 Plus tard
