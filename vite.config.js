@@ -13,6 +13,7 @@ export default defineConfig({
         short_name: "Nounou Connect",
         description:
           "Mise en relation entre ménages, agences de placement et nounous, avec badge de confiance porté par l'agence.",
+        lang: "fr",
         theme_color: "#1B4F82",
         background_color: "#EFF5F9",
         display: "standalone",
