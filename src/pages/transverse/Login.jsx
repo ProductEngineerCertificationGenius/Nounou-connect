@@ -165,11 +165,20 @@ export default function Login() {
         {step === "code" && (
           <form onSubmit={handleSubmit(onSubmitCode)} className="flex flex-col gap-4">
             <Field label="Code reçu par SMS" error={errors.code?.message}>
+              {/* Supabase Auth envoie par défaut un code à 6 chiffres par SMS
+                  (configurable de 6 à 10 dans Authentication > Providers >
+                  Phone). Si vous changez cette valeur côté Supabase, mettez
+                  aussi à jour le 6 ci-dessous. */}
               <input
                 className="input text-center tracking-[0.4em]"
-                placeholder="— — — —"
-                maxLength={4}
-                {...register("code", { required: "Le code est requis" })}
+                placeholder="— — — — — —"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                {...register("code", {
+                  required: "Le code est requis",
+                  pattern: { value: /^\d{6}$/, message: "Le code contient 6 chiffres" },
+                })}
               />
             </Field>
             <button className="btn-primary" type="submit" disabled={isSubmitting}>
