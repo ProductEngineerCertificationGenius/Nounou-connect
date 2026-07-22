@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useNounou } from "../../hooks/useData";
 import { useAuthStore } from "../../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../../lib/supabaseClient";
+import { normalizePhoneCI } from "../../lib/phone";
 import { QUARTIERS } from "../../data/mockData";
 import Field from "../../components/ui/Field";
 import Select from "../../components/ui/Select";
@@ -33,6 +34,7 @@ export default function NannyForm() {
         langues: existing.langues.join(", "),
         tarif: existing.tarif,
         quartier: existing.quartier,
+        telephone: existing.telephone || "",
       });
       setDisponible(existing.disponible);
     }
@@ -54,6 +56,7 @@ export default function NannyForm() {
       langues,
       tarif: Number(data.tarif),
       quartier: data.quartier,
+      telephone: normalizePhoneCI(data.telephone),
       disponible,
     };
 
@@ -90,6 +93,13 @@ export default function NannyForm() {
         </Field>
         <Field label="Expérience" error={errors.experience?.message}>
           <input className="input" placeholder="3 ans" {...register("experience", { required: "L'expérience est requise" })} />
+        </Field>
+        <Field label="Téléphone" error={errors.telephone?.message}>
+          <input
+            className="input"
+            placeholder="+225 07 00 00 00"
+            {...register("telephone", { required: "Le téléphone est requis (utilisé pour la connexion de la nounou)" })}
+          />
         </Field>
         <Field label="Langues parlées" error={errors.langues?.message}>
           <input className="input" placeholder="Français, Dioula" {...register("langues", { required: "Au moins une langue est requise" })} />

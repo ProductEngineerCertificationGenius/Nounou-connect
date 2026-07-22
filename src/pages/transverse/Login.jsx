@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { useAuthStore } from "../../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../../lib/supabaseClient";
 import { PROFILE_TABLES, buildProfileInsert } from "../../lib/profiles";
+import { normalizePhoneCI } from "../../lib/phone";
 import Field from "../../components/ui/Field";
 
 const PROFILE_LANDING = {
@@ -33,7 +34,7 @@ export default function Login() {
 
   const onSubmitPhone = async () => {
     setServerError("");
-    const { phone } = getValues();
+    const phone = normalizePhoneCI(getValues().phone);
     if (isSupabaseConfigured) {
       const { error } = await supabase.auth.signInWithOtp({ phone });
       if (error) {
@@ -46,7 +47,8 @@ export default function Login() {
 
   const onSubmitCode = async (data) => {
     setServerError("");
-    const { phone, profileType } = getValues();
+    const { profileType } = getValues();
+    const phone = normalizePhoneCI(getValues().phone);
 
     if (!isSupabaseConfigured) {
       // Mode démo (pas de projet Supabase configuré) : on simule la
@@ -84,14 +86,32 @@ export default function Login() {
       setUser(row);
     } else {
       // Connexion classique : le profil doit déjà exister.
-      const { data: row, error: selectError } = await supabase
-        .from(table)
-        .select("*")
-        .eq("user_id", userId)
-        .single();
-      if (selectError || !row) {
+      let row = null;
+      let selectError = null;
+
+      if (profileType === "nounou") {
+        // Cas spécifique nounou : la fiche a été créée par l'agence sans
+        // user_id. Au tout premier login, on tente de rattacher
+        // automatiquement le compte via la fonction RPC sécurisée (elle
+        // matche sur le téléphone vérifié par Supabase Auth côté serveur).
+        const { data: claimed, error: claimError } = await supabase.rpc(
+          "claim_nounou_profile"
+        );
+        if (claimError) {
+          selectError = claimError;
+        } else if (claimed?.id) {
+          row = claimed;
+        }
+      } else {
+        const result = await supabase.from(table).select("*").eq("user_id", userId).single();
+        row = result.data;
+        selectError = result.error;
+      }
+
+      if (!row) {
         setServerError(
-          `Aucun compte ${profileType} associé à ce numéro. Vérifiez le profil sélectionné ou inscrivez-vous.`
+          selectError?.message ||
+            `Aucun compte ${profileType} associé à ce numéro. Vérifiez le profil sélectionné ou inscrivez-vous.`
         );
         return;
       }

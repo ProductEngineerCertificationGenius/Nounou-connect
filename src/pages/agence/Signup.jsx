@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useAuthStore } from "../../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../../lib/supabaseClient";
+import { normalizePhoneCI } from "../../lib/phone";
 import { QUARTIERS } from "../../data/mockData";
 import Field from "../../components/ui/Field";
 import Select from "../../components/ui/Select";
@@ -24,14 +25,15 @@ export default function AgenceSignup() {
       return;
     }
     setServerError("");
-    const { error } = await supabase.auth.signInWithOtp({ phone: data.phone });
+    const phone = normalizePhoneCI(data.phone);
+    const { error } = await supabase.auth.signInWithOtp({ phone });
     if (error) {
       setServerError(error.message);
       return;
     }
     // La ligne `agences` est créée après vérification du code (cf. Login.jsx).
     navigate("/connexion", {
-      state: { phone: data.phone, profileType: "agence", pendingProfile: data },
+      state: { phone, profileType: "agence", pendingProfile: { ...data, phone } },
     });
   };
 

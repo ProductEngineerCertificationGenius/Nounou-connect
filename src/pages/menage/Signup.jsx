@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useAuthStore } from "../../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../../lib/supabaseClient";
+import { normalizePhoneCI } from "../../lib/phone";
 import { QUARTIERS } from "../../data/mockData";
 import Field from "../../components/ui/Field";
 import Select from "../../components/ui/Select";
@@ -24,7 +25,8 @@ export default function MenageSignup() {
       return;
     }
     setServerError("");
-    const { error } = await supabase.auth.signInWithOtp({ phone: data.phone });
+    const phone = normalizePhoneCI(data.phone);
+    const { error } = await supabase.auth.signInWithOtp({ phone });
     if (error) {
       setServerError(error.message);
       return;
@@ -32,7 +34,7 @@ export default function MenageSignup() {
     // La ligne `menages` est créée après vérification du code, sur l'écran
     // de connexion (cf. Login.jsx), une fois qu'on dispose d'un auth.uid().
     navigate("/connexion", {
-      state: { phone: data.phone, profileType: "menage", pendingProfile: data },
+      state: { phone, profileType: "menage", pendingProfile: { ...data, phone } },
     });
   };
 
