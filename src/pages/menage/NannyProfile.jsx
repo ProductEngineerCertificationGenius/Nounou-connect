@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useNounou, useAgence } from "../../hooks/useData";
+import { useNounouPublic, useAgence, useAvisByNounou } from "../../hooks/useData";
 import { useAuthStore } from "../../store/useAuthStore";
 import Avatar from "../../components/ui/Avatar";
 import Stars from "../../components/ui/Stars";
@@ -10,8 +10,9 @@ import RatingModal from "../../components/ui/RatingModal";
 export default function NannyProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: nounou, isLoading } = useNounou(id);
-  const { data: agence } = useAgence(nounou?.agenceId);
+  const { data: nounou, isLoading } = useNounouPublic(id);
+  const { data: agence } = useAgence(nounou?.agence_id ?? nounou?.agenceId);
+  const { data: avis } = useAvisByNounou(id);
   const [showRating, setShowRating] = useState(false);
   // user.id = id de la ligne `menages` du ménage connecté (posé au
   // login/inscription), requis pour enregistrer un avis.
@@ -60,7 +61,7 @@ export default function NannyProfile() {
 
         <h2 className="mb-3 font-display text-base font-semibold">Avis des familles</h2>
         <div className="flex flex-col gap-2">
-          {nounou.avis.map((a) => (
+          {avis?.map((a) => (
             <div key={a.id} className="card">
               <Stars rating={a.note} />
               <p className="mt-1 text-sm text-ink/70">{a.commentaire}</p>

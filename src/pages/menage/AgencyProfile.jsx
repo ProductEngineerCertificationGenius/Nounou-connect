@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useAgence, useNounousByAgence } from "../../hooks/useData";
+import { useAgence, useNounousPublicByAgence } from "../../hooks/useData";
 import Avatar from "../../components/ui/Avatar";
 import Stars from "../../components/ui/Stars";
 import TrustSeal from "../../components/ui/TrustSeal";
@@ -10,7 +10,7 @@ export default function AgencyProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: agence, isLoading } = useAgence(id);
-  const { data: nounous } = useNounousByAgence(id);
+  const { data: nounous } = useNounousPublicByAgence(id);
 
   if (isLoading || !agence) return <p className="text-sm text-ink/50">Chargement...</p>;
 

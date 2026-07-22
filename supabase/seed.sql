@@ -45,18 +45,23 @@ on conflict (id) do nothing;
 
 -- ----------------------------------------------------------
 -- Nounous
+-- Téléphone renseigné mais sans user_id : simule l'état réel après
+-- ajout par l'agence, avant la 1ère connexion OTP de la nounou.
+-- Testez ensuite le rattachement automatique en vous connectant avec
+-- l'un de ces numéros (profil "Nounou") -> claim_nounou_profile()
+-- doit lier le compte à la ligne correspondante.
 -- ----------------------------------------------------------
-insert into nounous (id, agence_id, nom, experience, langues, tarif, quartier, disponible)
+insert into nounous (id, agence_id, nom, experience, langues, tarif, quartier, disponible, telephone)
 values
   ('20000000-0000-0000-0000-000000000001',
    '10000000-0000-0000-0000-000000000001',
-   'Mariam T.', '3 ans', array['Français', 'Dioula'], 50000, 'Cocody', true),
+   'Mariam T.', '3 ans', array['Français', 'Dioula'], 50000, 'Cocody', true, '2250700000004'),
   ('20000000-0000-0000-0000-000000000002',
    '10000000-0000-0000-0000-000000000001',
-   'Fatou C.', '5 ans', array['Français', 'Baoulé'], 65000, 'Cocody', true),
+   'Fatou C.', '5 ans', array['Français', 'Baoulé'], 65000, 'Cocody', true, '2250700000005'),
   ('20000000-0000-0000-0000-000000000003',
    '10000000-0000-0000-0000-000000000003',
-   'Adjoua Y.', '2 ans', array['Français'], 40000, 'Yopougon', false)
+   'Adjoua Y.', '2 ans', array['Français'], 40000, 'Yopougon', false, '2250700000006')
 on conflict (id) do nothing;
 
 -- ----------------------------------------------------------

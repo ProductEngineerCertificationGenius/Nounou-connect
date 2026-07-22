@@ -16,18 +16,31 @@ export function useAgences(filters = {}) {
     queryFn: async () => {
       if (isSupabaseConfigured) {
         if (filters.quartier) {
-          // rechercher_agences (cf. 0003_functions.sql) : ne renvoie que les
-          // agences ayant au moins une nounou disponible dans ce quartier,
-          // triées par note. Plus pertinent qu'un simple filtre sur
-          // agences.quartier (qui est le quartier du siège, pas des nounous).
-          const { data, error } = await supabase.rpc("rechercher_agences", {
+          // rechercher_agences (cf. 0003/0006_functions.sql) : ne renvoie que
+          // les agences ayant au moins une nounou disponible dans ce
+          // quartier, triées par note. Renvoie des lignes `agences` brutes
+          // (note_moyenne, pas de nbNounous/nbAvis) : on complète ces champs
+          // via agences_public pour rester cohérent avec AgencyCard.jsx.
+          const { data: matches, error } = await supabase.rpc("rechercher_agences", {
             p_quartier: filters.quartier,
             p_besoin: filters.besoin ?? null,
           });
           if (error) throw error;
+          if (!matches?.length) return [];
+          const { data, error: publicError } = await supabase
+            .from("agences_public")
+            .select("*")
+            .in(
+              "id",
+              matches.map((a) => a.id)
+            );
+          if (publicError) throw publicError;
           return data;
         }
-        const { data, error } = await supabase.from("agences").select("*");
+        // `agences_public` (cf. 0007_calibrage_affichage.sql) expose déjà
+        // `note`, `nbNounous` et `nbAvis` dans la forme attendue par
+        // AgencyCard.jsx / AgencyProfile.jsx.
+        const { data, error } = await supabase.from("agences_public").select("*");
         if (error) throw error;
         return data;
       }
@@ -46,7 +59,7 @@ export function useAgence(id) {
     queryFn: async () => {
       if (isSupabaseConfigured) {
         const { data, error } = await supabase
-          .from("agences")
+          .from("agences_public")
           .select("*")
           .eq("id", id)
           .single();
@@ -59,15 +72,18 @@ export function useAgence(id) {
   });
 }
 
-export function useNounousByAgence(agenceId) {
+export function useNounousByAgence(agenceId, { table = "nounous" } = {}) {
   return useQuery({
-    queryKey: ["nounous", "agence", agenceId],
+    queryKey: ["nounous", table, "agence", agenceId],
     enabled: Boolean(agenceId),
     queryFn: async () => {
       if (isSupabaseConfigured) {
+        // `note:note_moyenne` : alias attendu par NannyCard.jsx. Fonctionne
+        // pour `nounous` comme pour `nounous_public`, les deux exposent
+        // note_moyenne.
         const { data, error } = await supabase
-          .from("nounous")
-          .select("*")
+          .from(table)
+          .select("*, note:note_moyenne")
           .eq("agence_id", agenceId);
         if (error) throw error;
         return data;
@@ -78,15 +94,23 @@ export function useNounousByAgence(agenceId) {
   });
 }
 
-export function useNounou(id) {
+// Variante publique : à utiliser sur les écrans consultés par un ménage
+// (ou un visiteur non connecté) pour lister le vivier d'une agence. Elle
+// lit `nounous_public` (cf. 0006_nounou_telephone_privacy.sql), une vue
+// qui expose les mêmes nounous SANS le champ `telephone`.
+export function useNounousPublicByAgence(agenceId) {
+  return useNounousByAgence(agenceId, { table: "nounous_public" });
+}
+
+export function useNounou(id, { table = "nounous" } = {}) {
   return useQuery({
-    queryKey: ["nounou", id],
+    queryKey: ["nounou", table, id],
     enabled: Boolean(id),
     queryFn: async () => {
       if (isSupabaseConfigured) {
         const { data, error } = await supabase
-          .from("nounous")
-          .select("*")
+          .from(table)
+          .select("*, note:note_moyenne")
           .eq("id", id)
           .single();
         if (error) throw error;
@@ -98,19 +122,86 @@ export function useNounou(id) {
   });
 }
 
+// Avis d'une nounou (table à part, lecture publique — cf. policy
+// avis_select_public). Utilisé par NannyProfile.jsx (ménage) et
+// Reviews.jsx (nounou), plutôt que d'attendre un `nounou.avis` imbriqué
+// qui n'existe pas côté base (avis est une table séparée).
+export function useAvisByNounou(nounouId) {
+  return useQuery({
+    queryKey: ["avis", "nounou", nounouId],
+    enabled: Boolean(nounouId),
+    queryFn: async () => {
+      if (isSupabaseConfigured) {
+        const { data, error } = await supabase
+          .from("avis")
+          .select("*")
+          .eq("nounou_id", nounouId)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data;
+      }
+      await wait(150);
+      return NOUNOUS.find((n) => n.id === nounouId)?.avis || [];
+    },
+  });
+}
+
+// Missions assignées à une nounou (AssignmentHistory.jsx). Nécessite la
+// policy `demandes_select_nounou_assignee` (0007) pour qu'une nounou
+// puisse lire ses propres demandes assignées, et `menages_select_via_demande`
+// (0007) pour voir le nom du ménage.
+export function useMissionsAssignees(nounouId) {
+  return useQuery({
+    queryKey: ["missions", "nounou", nounouId],
+    enabled: Boolean(nounouId),
+    queryFn: async () => {
+      if (isSupabaseConfigured) {
+        const { data, error } = await supabase
+          .from("demandes")
+          .select("id, date, statut, menage:menages(nom)")
+          .eq("nounou_assignee_id", nounouId)
+          .order("date", { ascending: false });
+        if (error) throw error;
+        return data.map((h) => ({ ...h, menage: h.menage?.nom }));
+      }
+      await wait(150);
+      return NOUNOUS.find((n) => n.id === nounouId)?.historique || [];
+    },
+  });
+}
+
+// Variante publique : fiche nounou consultée par un ménage. Lit
+// `nounous_public` (pas de `telephone` exposé) — voir
+// 0006_nounou_telephone_privacy.sql.
+export function useNounouPublic(id) {
+  return useNounou(id, { table: "nounous_public" });
+}
+
+function flattenDemande(d) {
+  return {
+    ...d,
+    menage: d.menage?.nom,
+    nounouAssignee: d.nounou_assignee?.nom,
+  };
+}
+
 export function useDemandes(agenceId) {
   return useQuery({
     queryKey: ["demandes", agenceId],
     enabled: Boolean(agenceId),
     queryFn: async () => {
       if (isSupabaseConfigured) {
+        // Embedding PostgREST : `menage:menages(nom)` et
+        // `nounou_assignee:nounous!nounou_assignee_id(nom)` nécessitent la
+        // policy `menages_select_via_demande` (0007) pour être lisibles par
+        // l'agence — sans elle, ces champs remonteraient toujours null.
         const { data, error } = await supabase
           .from("demandes")
-          .select("*")
+          .select("*, menage:menages(nom), nounou_assignee:nounous!nounou_assignee_id(nom)")
           .eq("agence_id", agenceId)
           .order("date", { ascending: false });
         if (error) throw error;
-        return data;
+        return data.map(flattenDemande);
       }
       await wait(150);
       return DEMANDES.filter((d) => d.agenceId === agenceId);
@@ -126,11 +217,11 @@ export function useDemande(id) {
       if (isSupabaseConfigured) {
         const { data, error } = await supabase
           .from("demandes")
-          .select("*")
+          .select("*, menage:menages(nom), nounou_assignee:nounous!nounou_assignee_id(nom)")
           .eq("id", id)
           .single();
         if (error) throw error;
-        return data;
+        return flattenDemande(data);
       }
       await wait(120);
       return DEMANDES.find((d) => d.id === id);

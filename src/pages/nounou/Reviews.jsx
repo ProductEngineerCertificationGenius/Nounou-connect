@@ -1,4 +1,4 @@
-import { useNounou } from "../../hooks/useData";
+import { useNounou, useAvisByNounou } from "../../hooks/useData";
 import { useAuthStore } from "../../store/useAuthStore";
 import Stars from "../../components/ui/Stars";
 import EmptyState from "../../components/ui/EmptyState";
@@ -6,6 +6,7 @@ import EmptyState from "../../components/ui/EmptyState";
 export default function Reviews() {
   const nounouId = useAuthStore((s) => s.user?.id);
   const { data: nounou } = useNounou(nounouId);
+  const { data: avis } = useAvisByNounou(nounouId);
 
   return (
     <div>
@@ -22,12 +23,12 @@ export default function Reviews() {
         )}
       </div>
 
-      {nounou?.avis.length === 0 && (
+      {avis?.length === 0 && (
         <EmptyState title="Aucun avis pour le moment" description="Vos premiers avis apparaîtront ici." />
       )}
 
       <div className="flex flex-col gap-2">
-        {nounou?.avis.map((a) => (
+        {avis?.map((a) => (
           <div key={a.id} className="card">
             <Stars rating={a.note} />
             <p className="mt-1 text-sm text-ink/70">{a.commentaire}</p>
