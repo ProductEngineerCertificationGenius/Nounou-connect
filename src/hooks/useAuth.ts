@@ -120,11 +120,31 @@ export function useInscription() {
                 row = created;
               }
             }
+
+            // Pour une nounou, `row` vient de la RPC claim_nounou_profile
+            // (fetchOrClaimProfile), qui renvoie null si aucune ligne
+            // `nounous` ne correspond au téléphone vérifié. Sans ce
+            // contrôle, le flux se terminait en "succès" (compte auth
+            // connecté) alors que la fiche n'était jamais rattachée, et
+            // rien ne le signalait à l'écran.
+            if (!row) {
+              throw new Error(
+                profileType === "nounou"
+                  ? "Aucune fiche nounou ne correspond à ce numéro. Vérifiez que votre agence a bien renseigné le même numéro de téléphone."
+                  : "Impossible de récupérer ou créer votre fiche profil."
+              );
+            }
             
             console.log("[useInscription] Succès (utilisateur existant)");
             return { phone: normalizedPhone, userId: signInData.user.id, profileType, row };
           } catch (e) {
             console.error("[useInscription] Erreur lors de la récupération:", e);
+            // On ne remplace le message générique que pour les erreurs
+            // réellement liées à signIn/signUp ; nos erreurs métier (fiche
+            // manquante ci-dessus) doivent rester lisibles telles quelles.
+            if (e instanceof Error && e.message.includes("Aucune fiche nounou")) {
+              throw e;
+            }
             throw new Error(
               "Un compte existe déjà avec ce numéro. Veuillez vous connecter à la place ou essayer un autre numéro."
             );
