@@ -1,4 +1,5 @@
 // src/pages/EspaceNounou.tsx
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   User,
@@ -8,6 +9,8 @@ import {
   CheckCircle,
   Clock,
   Heart,
+  FileText,
+  Calendar,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useLogout } from "../hooks/useAuth";
@@ -33,12 +36,32 @@ import { supabase, isSupabaseConfigured } from "../lib/supabase";
 // colonne de vérification). `famillesAidees` est désormais un vrai
 // compte (nombre de demandes assignées à elle avec statut='Assignée'),
 // pas un chiffre inventé.
+//
+// Ajout : onglet "Mes demandes" (n'existait pas du tout auparavant —
+// la nounou n'avait aucun moyen de voir les familles qui lui sont
+// assignées). S'appuie sur la policy RLS `demandes_select_nounou_assignee`
+// et sur `menages_select_via_demande` (0007_calibrage_affichage.sql),
+// déjà posées côté base pour ce cas précis — seul l'écran manquait.
 // ================================================================
+
+type Tab = "profil" | "demandes";
+
+interface DemandeNounou {
+  id: string;
+  quartier: string;
+  besoin: string;
+  temps: string;
+  logement: string;
+  statut: string;
+  date: string;
+  menage?: { nom: string } | null;
+}
 
 export default function EspaceNounou() {
   const onLogout = useLogout();
   const currentUser = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<Tab>("profil");
 
   const { data: profil } = useQuery({
     queryKey: ["nounou", "profil", currentUser?.user_id],
@@ -76,6 +99,20 @@ export default function EspaceNounou() {
     },
   });
 
+  const { data: mesDemandes } = useQuery({
+    queryKey: ["demandes", "nounou", profil?.id],
+    enabled: Boolean(profil?.id) && isSupabaseConfigured,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("demandes")
+        .select("*, menage:menages(nom)")
+        .eq("nounou_assignee_id", profil!.id)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data as DemandeNounou[];
+    },
+  });
+
   const toggleDisponible = useMutation({
     mutationFn: async () => {
       if (!profil) return;
@@ -85,7 +122,7 @@ export default function EspaceNounou() {
         .eq("id", profil.id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nounou", "profil", currentUser?.id] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nounou", "profil", currentUser?.user_id] }),
   });
 
   const initiales = (profil?.nom || "?")
@@ -94,6 +131,134 @@ export default function EspaceNounou() {
     .slice(0, 2)
     .join("")
     .toUpperCase();
+
+  const besoinLabels: Record<string, string> = {
+    "Garde d'enfants": "👶",
+    "Aide ménagère": "🧹",
+    "Mixte (Garde + Ménage)": "👶🧹",
+  };
+
+  const renderProfil = () => (
+    <>
+      <section className="profile-section">
+        <div className="profile-header">
+          <div className="avatar-wrapper">
+            {profil?.photo_url ? (
+              <img src={profil.photo_url} alt={profil?.nom} />
+            ) : (
+              <div className="avatar-placeholder" style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 24 }}>
+                {initiales}
+              </div>
+            )}
+          </div>
+          <div className="profile-info">
+            <div className="profile-name">
+              <h1>{profil?.nom || "..."}</h1>
+              <span className="role-badge">Nounou</span>
+            </div>
+            <div className="profile-meta">
+              <span><Star size={16} fill="#F59E0B" color="#F59E0B" /> {profil?.note_moyenne ?? "—"}/5</span>
+              <span><MapPin size={16} /> {profil?.quartier}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="stats-grid">
+          <div className="stat-card">
+            <span className="stat-number">{profil?.experience || "Non renseigné"}</span>
+            <span className="stat-label">Expérience</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">{nbFamillesAidees ?? 0}</span>
+            <span className="stat-label">Familles aidées</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number">{(profil?.tarif ?? 0).toLocaleString()}</span>
+            <span className="stat-label">FCFA / jour</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="statut-section">
+        <div className="statut-card">
+          <div className="statut-info">
+            <span className="statut-icon">
+              {profil?.disponible ? <CheckCircle size={24} /> : <Clock size={24} />}
+            </span>
+            <div>
+              <span className="statut-label">Mon statut</span>
+              <span className={`statut-value ${profil?.disponible ? "disponible" : "indisponible"}`}>
+                {profil?.disponible ? "✅ Disponible" : "❌ Indisponible"}
+              </span>
+            </div>
+          </div>
+          <button className="btn-toggle-statut" onClick={() => toggleDisponible.mutate()} disabled={toggleDisponible.isPending}>
+            {toggleDisponible.isPending ? "..." : profil?.disponible ? "Marquer indisponible" : "Marquer disponible"}
+          </button>
+        </div>
+      </section>
+
+      <section className="infos-section">
+        <div className="info-card">
+          <div className="info-card-header"><h3>Agence</h3></div>
+          <p className="info-card-value">{profil?.agence?.nom || "—"}</p>
+        </div>
+
+        <div className="info-card">
+          <div className="info-card-header"><h3>Langues</h3></div>
+          <div className="info-card-tags">
+            {(profil?.langues ?? []).map((l: string) => (
+              <span key={l} className="tag">{l}</span>
+            ))}
+            {(profil?.langues ?? []).length === 0 && <span style={{ color: "#78716C", fontSize: 13 }}>Non renseigné</span>}
+          </div>
+        </div>
+      </section>
+
+      <div className="info-message">
+        <Heart size={20} color="#C2614F" />
+        <p>Pour modifier vos informations, contactez votre agence : <strong>{profil?.agence?.nom}</strong></p>
+      </div>
+
+      <button className="btn-logout" onClick={onLogout}><LogOut size={20} /> Se déconnecter</button>
+    </>
+  );
+
+  const renderDemandes = () => (
+    <section className="demandes-section">
+      <h2 className="demandes-title">Mes demandes</h2>
+      <p className="demandes-subtitle">Familles pour lesquelles votre agence vous a assignée</p>
+      <div className="demandes-list">
+        {(mesDemandes ?? []).map((d) => (
+          <div key={d.id} className="demande-card">
+            <div className="demande-card-header">
+              <span className="demande-icon">{besoinLabels[d.besoin] || "📋"}</span>
+              <div className="demande-content">
+                <h4>{d.menage?.nom || "Famille"}</h4>
+                <div className="demande-meta">
+                  <span><MapPin size={12} /> {d.quartier}</span>
+                  <span><Clock size={12} /> {d.temps}</span>
+                  <span>🏠 {d.logement}</span>
+                </div>
+              </div>
+              <span className={`demande-statut ${d.statut === "Assignée" ? "assignee" : "attente"}`}>
+                {d.statut}
+              </span>
+            </div>
+            <div className="demande-card-footer">
+              <Calendar size={12} />
+              <span>
+                {new Date(d.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+              </span>
+            </div>
+          </div>
+        ))}
+        {(mesDemandes ?? []).length === 0 && (
+          <p style={{ color: "#78716C", fontSize: 14 }}>Aucune demande pour le moment.</p>
+        )}
+      </div>
+    </section>
+  );
 
   return (
     <div className="espace-nounou">
@@ -106,93 +271,17 @@ export default function EspaceNounou() {
       </header>
 
       <main className="nounou-content">
-        <section className="profile-section">
-          <div className="profile-header">
-            <div className="avatar-wrapper">
-              {profil?.photo_url ? (
-                <img src={profil.photo_url} alt={profil?.nom} />
-              ) : (
-                <div className="avatar-placeholder" style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 24 }}>
-                  {initiales}
-                </div>
-              )}
-            </div>
-            <div className="profile-info">
-              <div className="profile-name">
-                <h1>{profil?.nom || "..."}</h1>
-                <span className="role-badge">Nounou</span>
-              </div>
-              <div className="profile-meta">
-                <span><Star size={16} fill="#F59E0B" color="#F59E0B" /> {profil?.note_moyenne ?? "—"}/5</span>
-                <span><MapPin size={16} /> {profil?.quartier}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="stats-grid">
-            <div className="stat-card">
-              <span className="stat-number">{profil?.experience || "Non renseigné"}</span>
-              <span className="stat-label">Expérience</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-number">{nbFamillesAidees ?? 0}</span>
-              <span className="stat-label">Familles aidées</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-number">{(profil?.tarif ?? 0).toLocaleString()}</span>
-              <span className="stat-label">FCFA / jour</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="statut-section">
-          <div className="statut-card">
-            <div className="statut-info">
-              <span className="statut-icon">
-                {profil?.disponible ? <CheckCircle size={24} /> : <Clock size={24} />}
-              </span>
-              <div>
-                <span className="statut-label">Mon statut</span>
-                <span className={`statut-value ${profil?.disponible ? "disponible" : "indisponible"}`}>
-                  {profil?.disponible ? "✅ Disponible" : "❌ Indisponible"}
-                </span>
-              </div>
-            </div>
-            <button className="btn-toggle-statut" onClick={() => toggleDisponible.mutate()} disabled={toggleDisponible.isPending}>
-              {profil?.disponible ? "Marquer indisponible" : "Marquer disponible"}
-            </button>
-          </div>
-        </section>
-
-        <section className="infos-section">
-          <div className="info-card">
-            <div className="info-card-header"><h3>Agence</h3></div>
-            <p className="info-card-value">{profil?.agence?.nom || "—"}</p>
-          </div>
-
-          <div className="info-card">
-            <div className="info-card-header"><h3>Langues</h3></div>
-            <div className="info-card-tags">
-              {(profil?.langues ?? []).map((l: string) => (
-                <span key={l} className="tag">{l}</span>
-              ))}
-              {(profil?.langues ?? []).length === 0 && <span style={{ color: "#78716C", fontSize: 13 }}>Non renseigné</span>}
-            </div>
-          </div>
-        </section>
-
-        <div className="info-message">
-          <Heart size={20} color="#C2614F" />
-          <p>Pour modifier vos informations, contactez votre agence : <strong>{profil?.agence?.nom}</strong></p>
-        </div>
-
-        <button className="btn-logout" onClick={onLogout}><LogOut size={20} /> Se déconnecter</button>
+        {activeTab === "profil" ? renderProfil() : renderDemandes()}
       </main>
 
       <nav className="bottom-nav">
-        <button className="active">
-          <div className="nav-icon-wrapper active-icon"><User size={20} /></div>
+        <button className={activeTab === "profil" ? "active" : ""} onClick={() => setActiveTab("profil")}>
+          <div className={`nav-icon-wrapper ${activeTab === "profil" ? "active-icon" : ""}`}><User size={20} /></div>
           <span>Profil</span>
+        </button>
+        <button className={activeTab === "demandes" ? "active" : ""} onClick={() => setActiveTab("demandes")}>
+          <div className={`nav-icon-wrapper ${activeTab === "demandes" ? "active-icon" : ""}`}><FileText size={20} /></div>
+          <span>Demandes</span>
         </button>
       </nav>
 
@@ -662,6 +751,24 @@ export default function EspaceNounou() {
             font-size: 28px;
           }
         }
+
+        /* ============================================================ */
+        /* MES DEMANDES                                                 */
+        /* ============================================================ */
+        .demandes-title { font-size: 20px; font-weight: 700; color: #1C1917; margin: 0 0 2px; }
+        .demandes-subtitle { font-size: 13px; color: #78716C; margin: 0 0 16px; }
+        .demandes-list { display: flex; flex-direction: column; gap: 12px; }
+        .demande-card { background: white; border-radius: 14px; padding: 14px 16px; border: 1px solid rgba(212,184,150,0.15); box-shadow: 0 2px 8px rgba(28,25,23,0.04); }
+        .demande-card-header { display: flex; align-items: flex-start; gap: 10px; }
+        .demande-icon { font-size: 20px; flex-shrink: 0; }
+        .demande-content { flex: 1; min-width: 0; }
+        .demande-content h4 { font-size: 15px; font-weight: 700; color: #1C1917; margin: 0 0 4px; }
+        .demande-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: #78716C; }
+        .demande-meta span { display: flex; align-items: center; gap: 3px; }
+        .demande-statut { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 50px; white-space: nowrap; }
+        .demande-statut.assignee { background: #E8F5E8; color: #4A7C59; }
+        .demande-statut.attente { background: #F2D6D8; color: #C2614F; }
+        .demande-card-footer { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #78716C; margin-top: 10px; padding-top: 10px; border-top: 1px solid #F5F0EB; }
       `}</style>
     </div>
   );

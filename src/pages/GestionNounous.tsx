@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { normalizePhoneCI } from "../lib/phone";
 
 // ================================================================
 // Réécriture complète, branchée sur la table réelle `nounous`.
@@ -178,7 +179,13 @@ function FormNounou({ agenceId, nounou, onClose }: FormNounouProps) {
       const languesArray = formData.langues.split(",").map((l) => l.trim()).filter(Boolean);
       const payload = {
         nom: formData.nom,
-        telephone: formData.telephone,
+        // Doit matcher le format E.164 (+225...) utilisé par Supabase
+        // Auth (normalizePhoneCI, cf. useInscription) : la RPC
+        // claim_nounou_profile compare les chiffres de ce champ à ceux
+        // du téléphone vérifié par OTP à l'activation. Un téléphone
+        // stocké en format local (ex: "0507069425") ne matchera jamais
+        // "+2250507069425" -> la nounou ne peut jamais activer son compte.
+        telephone: normalizePhoneCI(formData.telephone),
         quartier: formData.quartier,
         experience: formData.experience,
         langues: languesArray,
