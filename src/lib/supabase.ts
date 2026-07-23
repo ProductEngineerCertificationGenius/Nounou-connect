@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { useAuthStore } from "../store/useAuthStore";
 
 // Le fichier était vide (`lib/supabase.ts`) : @supabase/supabase-js était
 // déjà en dépendance mais jamais réellement instancié. C'est le client
@@ -39,11 +40,9 @@ export const supabase = createClient(
 // Sans ce listener, l'app continue d'utiliser la fiche profil obsolète du
 // store pour interroger la base avec le user_id de la NOUVELLE session
 // Supabase → requêtes qui ne trouvent rien (406) puis écritures refusées
-// par les policies RLS (403). On importe dynamiquement pour éviter un
-// cycle d'imports (useAuthStore n'a pas besoin de connaître supabase.ts).
+// par les policies RLS (403).
 if (isSupabaseConfigured && typeof window !== "undefined") {
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    const { useAuthStore } = await import("../store/useAuthStore");
+  supabase.auth.onAuthStateChange((event, session) => {
     const storedUserId = useAuthStore.getState().user?.user_id;
 
     if (event === "SIGNED_OUT" || !session) {
