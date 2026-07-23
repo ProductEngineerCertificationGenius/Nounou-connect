@@ -36,11 +36,20 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!isSupabaseConfigured) return;
-      const { error } = await supabase.from("menages").update(formData).eq("user_id", currentUser!.id);
+      
+      // Récupérer le userId depuis la session Supabase auth
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUserId = session?.user?.id;
+      
+      if (!authUserId) {
+        throw new Error("Pas de session auth");
+      }
+      
+      const { error } = await supabase.from("menages").update(formData).eq("user_id", authUserId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["menage", "profil", currentUser?.id] });
+      queryClient.invalidateQueries({ queryKey: ["menage", "profil", currentUser?.user_id] });
       setIsEditing(false);
     },
     onError: (err) => alert(err instanceof Error ? err.message : "Erreur lors de l'enregistrement."),

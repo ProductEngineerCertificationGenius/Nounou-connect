@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useLogout } from "../hooks/useAuth";
+import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import RechercheNounou from "./RechercheNounou";
 import DemandesPage from "./DemandesPage";
@@ -64,6 +65,10 @@ interface Avis {
 
 export default function EspaceMenage() {
   const onLogout = useLogout();
+  const { user, profileType } = useAuthStore();
+  
+  console.log("[EspaceMenage] Montage, user/profileType:", { userId: user?.id, profileType });
+  
   const [activeTab, setActiveTab] = useState<Tab>("accueil");
   const [selectedNounouId, setSelectedNounouId] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
@@ -76,13 +81,21 @@ export default function EspaceMenage() {
     queryKey: ["nounous_public", "disponibles"],
     enabled: isSupabaseConfigured,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("nounous_public")
-        .select("*, agence:agences(nom)")
-        .eq("disponible", true)
-        .limit(20);
-      if (error) throw error;
-      return data as NounouAffichee[];
+      try {
+        const session = await supabase.auth.getSession();
+        console.log("[EspaceMenage] Session actuelle:", { user: session.data?.session?.user?.id, hasSession: !!session.data?.session });
+        
+        const { data, error } = await supabase
+          .from("nounous_public")
+          .select("*, agence:agences(nom)")
+          .eq("disponible", true)
+          .limit(20);
+        if (error) throw error;
+        return data as NounouAffichee[];
+      } catch (err) {
+        console.error("[EspaceMenage] Erreur nounousDisponibles:", err);
+        throw err;
+      }
     },
   });
 

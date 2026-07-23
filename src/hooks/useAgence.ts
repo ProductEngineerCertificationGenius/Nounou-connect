@@ -13,13 +13,23 @@ export function useAgenceProfil() {
   const currentUser = useAuthStore((s) => s.user);
 
   return useQuery({
-    queryKey: ["agence", "profil", currentUser?.id],
-    enabled: Boolean(currentUser?.id) && isSupabaseConfigured,
+    queryKey: ["agence", "profil", currentUser?.user_id],
+    enabled: Boolean(currentUser?.user_id) && isSupabaseConfigured,
     queryFn: async () => {
+      // Récupérer le userId depuis la session Supabase auth
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUserId = session?.user?.id;
+      
+      console.log("[useAgenceProfil] Session auth userId:", authUserId);
+      
+      if (!authUserId) {
+        throw new Error("Pas de session auth");
+      }
+      
       const { data, error } = await supabase
         .from("agences")
         .select("*")
-        .eq("user_id", currentUser!.id)
+        .eq("user_id", authUserId)
         .single();
       if (error) throw error;
       return data;

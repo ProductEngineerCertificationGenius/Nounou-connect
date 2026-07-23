@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { useConnexion, useDemanderResetPin, useVerifierOtp, useDefinirNouveauPin } from "../hooks/useAuth";
+import { useConnexion, useDemanderResetPin } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
 import type { ProfileType } from "../store/useAuthStore";
 
@@ -25,20 +25,15 @@ const PROFILE_LANDING: Record<ProfileType, string> = {
 // et pour réinitialiser un PIN oublié (géré ici).
 export default function ConnexionPage() {
   const navigate = useNavigate();
-  const [screen, setScreen] = useState<"login" | "forgot-phone" | "otp" | "new-pin">("login");
+  const [screen, setScreen] = useState<"login" | "forgot-phone">("login");
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
-  const [newPin, setNewPin] = useState(["", "", "", ""]);
   const [telephone, setTelephone] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [selectedProfil, setSelectedProfil] = useState<ProfileType>("menage");
   const [errorMessage, setErrorMessage] = useState("");
-  const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
 
   const connexion = useConnexion();
   const demanderReset = useDemanderResetPin();
-  const verifierOtp = useVerifierOtp();
-  const definirNouveauPin = useDefinirNouveauPin();
 
   // ===== GESTIONNAIRES DE SAISIE CHIFFRE PAR CHIFFRE =====
   const makeDigitHandler = (
@@ -67,10 +62,6 @@ export default function ConnexionPage() {
 
   const handlePinChange = makeDigitHandler(pin, setPin, "pin", PIN_LENGTH);
   const handlePinKeyDown = makeKeyDownHandler(pin, "pin");
-  const handleNewPinChange = makeDigitHandler(newPin, setNewPin, "new-pin", PIN_LENGTH);
-  const handleNewPinKeyDown = makeKeyDownHandler(newPin, "new-pin");
-  const handleOtpChange = makeDigitHandler(otp, setOtp, "otp", 6);
-  const handleOtpKeyDown = makeKeyDownHandler(otp, "otp");
 
   // ===== ÉTAPE 1 : CONNEXION PAR TÉLÉPHONE + PIN (sans SMS) =====
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -88,50 +79,18 @@ export default function ConnexionPage() {
     }
   };
 
-  // ===== PIN OUBLIÉ, ÉTAPE 1 : demander un code SMS =====
+  // ===== PIN OUBLIÉ : la vérification SMS a été retirée =====
   const handleForgotPhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     try {
       await demanderReset.mutateAsync(telephone);
-      setScreen("otp");
+      setScreen("login");
+      setErrorMessage(
+        "La vérification par SMS a été retirée. Si vous avez perdu votre PIN, veuillez vous reconnecter avec votre compte existant ou créer un nouveau compte."
+      );
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Erreur lors de l'envoi du code.");
-    }
-  };
-
-  // ===== ÉTAPE OTP (partagée : uniquement le flux "PIN oublié" ici) =====
-  const handleOtpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage("");
-    try {
-      const result = await verifierOtp.mutateAsync({
-        phone: telephone,
-        otp: otp.join(""),
-        profileType: selectedProfil,
-        intent: "reset-pin",
-      });
-      setVerifiedUserId(result.userId);
-      setScreen("new-pin");
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Code invalide.");
-    }
-  };
-
-  // ===== PIN OUBLIÉ, ÉTAPE FINALE : choisir un nouveau PIN =====
-  const handleNewPinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage("");
-    if (!verifiedUserId) return;
-    try {
-      const { row, profileType } = await definirNouveauPin.mutateAsync({
-        pin: newPin.join(""),
-        profileType: selectedProfil,
-        userId: verifiedUserId,
-      });
-      if (row) navigate(PROFILE_LANDING[profileType]);
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Erreur lors de l'enregistrement du PIN.");
+      setErrorMessage(err instanceof Error ? err.message : "Erreur lors du traitement de la demande.");
     }
   };
 
@@ -243,11 +202,13 @@ export default function ConnexionPage() {
               </>
             )}
 
-            {/* ===== PIN OUBLIÉ, ÉTAPE 1 : demander le SMS ===== */}
+            {/* ===== PIN OUBLIÉ : simplification sans SMS ===== */}
             {screen === "forgot-phone" && (
               <>
                 <h2 className="connexion-title">PIN oublié</h2>
-                <p className="connexion-subtitle">Un code SMS va être envoyé à ce numéro</p>
+                <p className="connexion-subtitle">
+                  La vérification par SMS a été retirée. Entrez votre numéro pour revenir à la connexion.
+                </p>
                 <form onSubmit={handleForgotPhoneSubmit} className="connexion-form">
                   <div className="form-group">
                     <label>Numéro de téléphone</label>
@@ -260,74 +221,7 @@ export default function ConnexionPage() {
                     />
                   </div>
                   <button type="submit" className="submit-button" disabled={demanderReset.isPending}>
-                    {demanderReset.isPending ? "Envoi..." : "Recevoir le code"}
-                  </button>
-                </form>
-              </>
-            )}
-
-            {/* ===== ÉTAPE OTP (PIN oublié uniquement) ===== */}
-            {screen === "otp" && (
-              <>
-                <h2 className="connexion-title">Vérification</h2>
-                <p className="connexion-subtitle">Un code à 6 chiffres a été envoyé à {telephone}</p>
-                <form onSubmit={handleOtpSubmit} className="connexion-form">
-                  <div className="form-group">
-                    <label>Code OTP (6 chiffres)</label>
-                    <div className="otp-container">
-                      {[0, 1, 2, 3, 4, 5].map((index) => (
-                        <input
-                          key={index}
-                          id={`otp-${index}`}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={otp[index]}
-                          onChange={(e) => handleOtpChange(index, e.target.value)}
-                          onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                          className="otp-input"
-                          autoFocus={index === 0}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <button type="submit" className="submit-button" disabled={verifierOtp.isPending}>
-                    {verifierOtp.isPending ? "Vérification..." : "Vérifier"}
-                  </button>
-                </form>
-              </>
-            )}
-
-            {/* ===== PIN OUBLIÉ, ÉTAPE FINALE : choisir un nouveau PIN ===== */}
-            {screen === "new-pin" && (
-              <>
-                <h2 className="connexion-title">Nouveau PIN</h2>
-                <p className="connexion-subtitle">Ce PIN remplacera l'ancien pour vos prochaines connexions</p>
-                <form onSubmit={handleNewPinSubmit} className="connexion-form">
-                  <div className="form-group">
-                    <label className="pin-label">
-                      <Lock size={16} className="pin-icon" />
-                      Nouveau PIN ({PIN_LENGTH} chiffres)
-                    </label>
-                    <div className="pin-container">
-                      {[0, 1, 2, 3].map((index) => (
-                        <input
-                          key={index}
-                          id={`new-pin-${index}`}
-                          type="password"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={newPin[index]}
-                          onChange={(e) => handleNewPinChange(index, e.target.value)}
-                          onKeyDown={(e) => handleNewPinKeyDown(index, e)}
-                          className="pin-input"
-                          autoFocus={index === 0}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <button type="submit" className="submit-button" disabled={definirNouveauPin.isPending}>
-                    {definirNouveauPin.isPending ? "Enregistrement..." : "Valider le nouveau PIN"}
+                    {demanderReset.isPending ? "Traitement..." : "Retour à la connexion"}
                   </button>
                 </form>
               </>

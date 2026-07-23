@@ -41,13 +41,21 @@ export default function EspaceNounou() {
   const queryClient = useQueryClient();
 
   const { data: profil } = useQuery({
-    queryKey: ["nounou", "profil", currentUser?.id],
-    enabled: Boolean(currentUser?.id) && isSupabaseConfigured,
+    queryKey: ["nounou", "profil", currentUser?.user_id],
+    enabled: Boolean(currentUser?.user_id) && isSupabaseConfigured,
     queryFn: async () => {
+      // Récupérer le userId depuis la session Supabase auth
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUserId = session?.user?.id;
+      
+      if (!authUserId) {
+        throw new Error("Pas de session auth");
+      }
+      
       const { data, error } = await supabase
         .from("nounous")
         .select("*, agence:agences(nom)")
-        .eq("user_id", currentUser!.id)
+        .eq("user_id", authUserId)
         .single();
       if (error) throw error;
       return data;

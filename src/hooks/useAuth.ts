@@ -43,18 +43,151 @@ async function fetchOrClaimProfile(
   return data;
 }
 
-// ===== INSCRIPTION / ACTIVATION (étape 1 : créer le compte + PIN) =====
+// ===== INSCRIPTION / ACTIVATION (création directe du compte + PIN) =====
 export function useInscription() {
+  const { setUser, setProfileType } = useAuthStore();
+
   return useMutation({
-    mutationFn: async ({ phone, pin }: { phone: string; pin: string }) => {
+    mutationFn: async ({
+      phone,
+      pin,
+      profileType,
+      pendingProfile,
+    }: {
+      phone: string;
+      pin: string;
+      profileType: ProfileType;
+      pendingProfile?: { nom: string; telephone: string; quartier: string };
+    }) => {
       const normalizedPhone = normalizePhoneCI(phone);
-      if (!isSupabaseConfigured) return { phone: normalizedPhone };
+      console.log("[useInscription] Début inscription:", { normalizedPhone, profileType, isSupabaseConfigured });
+      
+      if (!isSupabaseConfigured) {
+        console.error("[useInscription] Supabase n'est pas configuré !");
+        throw new Error(
+          "Supabase n'est pas configuré. Vérifiez les variables d'environnement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY dans .env.local"
+        );
+      }
+
+      console.log("[useInscription] Appel signUp...");
       const { data, error } = await supabase.auth.signUp({
         phone: normalizedPhone,
         password: pinToPassword(pin),
       });
-      if (error) throw error;
-      return { phone: normalizedPhone, userId: data.user?.id };
+      
+      console.log("[useInscription] Réponse signUp:", { user: data.user?.id, error: error?.message });
+
+      // Traiter les erreurs
+      if (error) {
+        console.error("[useInscription] Erreur signUp:", error.message);
+        
+        // Si l'utilisateur existe déjà, essayer de se connecter et créer la fiche manquante
+        if (error.message?.includes("already registered") || error.message?.includes("already exists")) {
+          console.log("[useInscription] Utilisateur existe, tentative de récupération...");
+          try {
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              phone: normalizedPhone,
+              password: pinToPassword(pin),
+            });
+            
+            if (signInError) throw signInError;
+            if (!signInData.user) throw new Error("Impossible de récupérer l'utilisateur");
+            
+            console.log("[useInscription] Utilisateur récupéré:", signInData.user.id);
+            
+            // S'assurer que la session est bien définie
+            if (signInData.session) {
+              await supabase.auth.setSession(signInData.session);
+            }
+            
+            // Chercher ou créer la fiche
+            let row = await fetchOrClaimProfile(profileType, signInData.user.id);
+            
+            if (!row && (profileType === "menage" || profileType === "agence")) {
+              console.log("[useInscription] Création fiche manquante...");
+              const table = PROFILE_TABLES[profileType];
+              const insertValues = pendingProfile
+                ? buildProfileInsert(profileType, signInData.user.id, pendingProfile)
+                : null;
+              if (insertValues) {
+                const { data: created, error: insertError } = await supabase
+                  .from(table)
+                  .insert(insertValues)
+                  .select()
+                  .single();
+                if (insertError) throw insertError;
+                console.log("[useInscription] Fiche créée:", created.id);
+                row = created;
+              }
+            }
+            
+            console.log("[useInscription] Succès (utilisateur existant)");
+            return { phone: normalizedPhone, userId: signInData.user.id, profileType, row };
+          } catch (e) {
+            console.error("[useInscription] Erreur lors de la récupération:", e);
+            throw new Error(
+              "Un compte existe déjà avec ce numéro. Veuillez vous connecter à la place ou essayer un autre numéro."
+            );
+          }
+        }
+        
+        // Autres erreurs
+        throw error;
+      }
+
+      if (!data.user) throw new Error("Impossible de créer le compte");
+      
+      console.log("[useInscription] Nouvel utilisateur créé:", data.user.id);
+      console.log("[useInscription] Session après signUp:", data.session ? "présente" : "absente");
+      
+      // Rafraîchir la session pour s'assurer qu'elle est bien établie
+      if (data.session) {
+        await supabase.auth.setSession(data.session);
+        console.log("[useInscription] Session définie");
+        
+        // Vérifier que la session est bien établie
+        const { data: { session: verifySession } } = await supabase.auth.getSession();
+        console.log("[useInscription] Vérification session:", {
+          setUserId: data.user.id,
+          verifyUserId: verifySession?.user?.id,
+          match: data.user.id === verifySession?.user?.id
+        });
+      }
+      
+      let row: ProfileRow | null = null;
+      
+      if (profileType === "menage" || profileType === "agence") {
+        const table = PROFILE_TABLES[profileType];
+        const insertValues = pendingProfile
+          ? buildProfileInsert(profileType, data.user.id, pendingProfile)
+          : null;
+        if (insertValues) {
+          console.log("[useInscription] Création fiche:", table);
+          const { data: created, error: insertError } = await supabase
+            .from(table)
+            .insert(insertValues)
+            .select()
+            .single();
+          if (insertError) throw insertError;
+          console.log("[useInscription] Fiche créée:", created.id);
+          row = created;
+        }
+      } else {
+        row = await fetchOrClaimProfile(profileType, data.user.id);
+      }
+
+      console.log("[useInscription] Succès, retour:", { userId: data.user.id, profileType, rowId: row?.id });
+      return { phone: normalizedPhone, userId: data.user.id, profileType, row };
+    },
+    onSuccess: ({ row, profileType }) => {
+      console.log("[useInscription] onSuccess:", { rowId: row?.id, profileType });
+      if (row) {
+        setUser(row);
+        setProfileType(profileType);
+      }
+    },
+    onError: (error) => {
+      console.error("[useInscription] onError:", error.message);
     },
   });
 }
@@ -99,71 +232,7 @@ export function useConnexion() {
   });
 }
 
-// ===== VÉRIFICATION OTP (inscription/activation ET réinitialisation PIN) =====
-// `intent`: "signup" -> crée la fiche métier après confirmation ;
-//           "reset-pin" -> confirme juste l'identité, cf. useDefinirNouveauPin.
-export function useVerifierOtp() {
-  const { setUser, setProfileType } = useAuthStore();
-
-  return useMutation({
-    mutationFn: async ({
-      phone,
-      otp,
-      profileType,
-      intent = "signup",
-      pendingProfile,
-    }: {
-      phone: string;
-      otp: string;
-      profileType: ProfileType;
-      intent?: "signup" | "reset-pin";
-      pendingProfile?: { nom: string; telephone: string; quartier: string };
-    }) => {
-      const normalizedPhone = normalizePhoneCI(phone);
-      if (!isSupabaseConfigured) return { userId: null, profileType, intent, row: null };
-
-      const { data: authData, error } = await supabase.auth.verifyOtp({
-        phone: normalizedPhone,
-        token: otp,
-        type: "sms",
-      });
-      if (error) throw new Error("Code invalide ou expiré. Réessayez.");
-
-      if (intent === "reset-pin") {
-        return { userId: authData.user!.id, profileType, intent, row: null };
-      }
-
-      let row: ProfileRow | null;
-      if (pendingProfile && (profileType === "menage" || profileType === "agence")) {
-        const table = PROFILE_TABLES[profileType];
-        const insertValues = buildProfileInsert(profileType, authData.user!.id, pendingProfile);
-        const { data: created, error: insertError } = await supabase
-          .from(table)
-          .insert(insertValues)
-          .select()
-          .single();
-        if (insertError) throw insertError;
-        row = created;
-      } else {
-        row = await fetchOrClaimProfile(profileType, authData.user!.id);
-        if (!row) {
-          throw new Error(
-            "Aucune fiche nounou ne correspond à ce numéro. Vérifiez auprès de votre agence."
-          );
-        }
-      }
-      return { userId: authData.user!.id, profileType, intent, row };
-    },
-    onSuccess: (result) => {
-      if (result.intent === "signup" && result.row) {
-        setUser(result.row);
-        setProfileType(result.profileType);
-      }
-    },
-  });
-}
-
-// ===== DÉFINIR UN NOUVEAU PIN (PIN oublié, après OTP vérifié) =====
+// ===== DÉFINIR UN NOUVEAU PIN (réinitialisation directe après authentification) =====
 export function useDefinirNouveauPin() {
   const { setUser, setProfileType } = useAuthStore();
 
@@ -192,14 +261,12 @@ export function useDefinirNouveauPin() {
   });
 }
 
-// ===== RENVOYER UN CODE (PIN oublié, étape 1) =====
+// ===== RÉINITIALISATION DU PIN (sans vérification SMS) =====
 export function useDemanderResetPin() {
   return useMutation({
     mutationFn: async (phone: string) => {
       const normalizedPhone = normalizePhoneCI(phone);
       if (!isSupabaseConfigured) return { phone: normalizedPhone };
-      const { error } = await supabase.auth.signInWithOtp({ phone: normalizedPhone });
-      if (error) throw error;
       return { phone: normalizedPhone };
     },
   });

@@ -18,14 +18,37 @@ export function useMenageProfil() {
   const currentUser = useAuthStore((s) => s.user);
 
   return useQuery({
-    queryKey: ["menage", "profil", currentUser?.id],
-    enabled: Boolean(currentUser?.id) && isSupabaseConfigured,
+    queryKey: ["menage", "profil", currentUser?.user_id],
+    enabled: Boolean(currentUser?.user_id) && isSupabaseConfigured,
     queryFn: async () => {
+      // Récupérer le userId depuis la session Supabase auth
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUserId = session?.user?.id;
+      
+      console.log("[useMenageProfil] Session auth userId:", authUserId);
+      console.log("[useMenageProfil] Store user_id:", currentUser!.user_id);
+      
+      if (!authUserId) {
+        throw new Error("Pas de session auth");
+      }
+      
+      // Vérifier la cohérence
+      if (authUserId !== currentUser!.user_id) {
+        console.warn("[useMenageProfil] MISMATCH: auth userId !== store user_id", {
+          auth: authUserId,
+          store: currentUser!.user_id
+        });
+      }
+      
+      // Utiliser TOUJOURS l'auth userId pour les requêtes RLS
       const { data, error } = await supabase
         .from("menages")
         .select("*")
-        .eq("user_id", currentUser!.id)
+        .eq("user_id", authUserId)
         .single();
+      
+      console.log("[useMenageProfil] Réponse:", { data, error: error?.message });
+      
       if (error) throw error;
       return data;
     },

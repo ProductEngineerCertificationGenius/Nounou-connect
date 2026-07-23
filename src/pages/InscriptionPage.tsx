@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Home, Building2, UserCheck, Eye, EyeOff, Shield, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { useInscription, useVerifierOtp } from "../hooks/useAuth";
+import { useInscription } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
 import type { ProfileType } from "../store/useAuthStore";
 
@@ -53,10 +53,9 @@ export default function InscriptionPage() {
   const initialProfil = searchParams.get("profil") as ProfileType | null;
 
   const [profil, setProfil] = useState<ProfileType | null>(initialProfil);
-  const [screen, setScreen] = useState<"choix" | "form" | "otp">(initialProfil ? "form" : "choix");
+  const [screen, setScreen] = useState<"choix" | "form">(initialProfil ? "form" : "choix");
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [formData, setFormData] = useState({
     nom: "",
     telephone: "",
@@ -68,7 +67,6 @@ export default function InscriptionPage() {
   const [serverError, setServerError] = useState("");
 
   const inscription = useInscription();
-  const verifierOtp = useVerifierOtp();
 
   useEffect(() => {
     if (initialProfil) {
@@ -100,27 +98,15 @@ export default function InscriptionPage() {
     }
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1 || !/^\d*$/.test(value)) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-    if (value && index < 5) {
-      document.getElementById(`otp-${index + 1}`)?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      document.getElementById(`otp-${index - 1}`)?.focus();
-    }
-  };
-
   // ===== ÉTAPE 1 : créer le compte (signUp + PIN), déclenche l'envoi du SMS =====
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setServerError("");
 
+    if (!profil) {
+      setServerError("Veuillez sélectionner un profil.");
+      return;
+    }
     if (!validatePhoneNumber(formData.telephone)) {
       setPhoneError("Numéro invalide. Utilisez un format 07 XX XX XX XX");
       return;
@@ -135,33 +121,20 @@ export default function InscriptionPage() {
     }
 
     try {
-      await inscription.mutateAsync({ phone: formData.telephone, pin: pin.join("") });
-      setScreen("otp");
-    } catch (err) {
-      setServerError(err instanceof Error ? err.message : "Erreur lors de l'inscription.");
-    }
-  };
-
-  // ===== ÉTAPE 2 : vérifier le SMS, créer la fiche (menage/agence) ou la rattacher (nounou) =====
-  const handleOtpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setServerError("");
-    if (!profil) return;
-
-    try {
-      const result = await verifierOtp.mutateAsync({
+      const result = await inscription.mutateAsync({
         phone: formData.telephone,
-        otp: otp.join(""),
+        pin: pin.join(""),
         profileType: profil,
-        intent: "signup",
         pendingProfile:
           profil === "nounou"
             ? undefined
             : { nom: formData.nom, telephone: formData.telephone, quartier: formData.quartier },
       });
-      if (result.row) navigate(PROFILE_LANDING[profil]);
+      if (result.row) {
+        navigate(PROFILE_LANDING[profil]);
+      }
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : "Code invalide ou expiré.");
+      setServerError(err instanceof Error ? err.message : "Erreur lors de l'inscription.");
     }
   };
 
@@ -357,7 +330,7 @@ export default function InscriptionPage() {
             </div>
 
             <button type="submit" className="submit-button" disabled={inscription.isPending}>
-              <Shield size={18} /> {inscription.isPending ? "Envoi..." : "Recevoir le code de confirmation"}
+              <Shield size={18} /> {inscription.isPending ? "Envoi..." : "S'inscrire"}
             </button>
 
             <p className="login-link">
@@ -372,50 +345,6 @@ export default function InscriptionPage() {
     );
   };
 
-  // ===== RENDU DE L'ÉTAPE OTP =====
-  const renderOtp = () => (
-    <div className="inscription-grid">
-      <div className="inscription-svg">
-        <img src="/inscription.svg" alt="Vérification" className="inscription-image" />
-      </div>
-      <div className="inscription-content">
-        <h2 className="form-title">Confirmation</h2>
-        <p className="form-subtitle">
-          Un code à 6 chiffres a été envoyé au {formData.telephone}
-        </p>
-
-        {serverError && (
-          <p style={{ color: "#E87A7A", fontSize: 14, marginBottom: 12 }}>{serverError}</p>
-        )}
-
-        <form onSubmit={handleOtpSubmit} className="form-container">
-          <div className="form-group">
-            <label>Code reçu par SMS</label>
-            <div className="otp-container">
-              {[0, 1, 2, 3, 4, 5].map((index) => (
-                <input
-                  key={index}
-                  id={`otp-${index}`}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={otp[index]}
-                  onChange={(e) => handleOtpChange(index, e.target.value)}
-                  onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                  className="otp-input"
-                  autoFocus={index === 0}
-                />
-              ))}
-            </div>
-          </div>
-          <button type="submit" className="submit-button" disabled={verifierOtp.isPending}>
-            {verifierOtp.isPending ? "Vérification..." : "Confirmer"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-
   return (
     <div className="inscription-page">
       <div className="inscription-container">
@@ -428,7 +357,6 @@ export default function InscriptionPage() {
         </div>
         {screen === "choix" && renderProfilChoix()}
         {screen === "form" && profil && renderFormulaire()}
-        {screen === "otp" && renderOtp()}
       </div>
 
       <style>{`
