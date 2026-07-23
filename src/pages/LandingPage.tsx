@@ -191,7 +191,7 @@ export default function LandingPage() {
           <span style={{ fontSize: 17, fontWeight: 700, color: "#1C1917", letterSpacing: "-0.3px" }}>Nounou Connect</span>
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a href="tel:0170826468" style={{ fontSize: 14, color: "#78716C", textDecoration: "none", fontWeight: 500 }}>Aide</a>
+          <a href="/aide" style={{ fontSize: 14, color: "#78716C", textDecoration: "none", fontWeight: 500 }}>Aide</a>
           <button
             onClick={onConnexion}
             style={{
