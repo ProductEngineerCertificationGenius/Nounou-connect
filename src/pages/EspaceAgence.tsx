@@ -159,7 +159,7 @@ export default function EspaceAgence() {
 
   // La fiche agence (id réel, distinct du user_id Auth) est nécessaire
   // pour toutes les requêtes filtrées par agence_id.
-  const { data: agenceProfil } = useAgenceProfil();
+  const { data: agenceProfil, isError: agenceProfilError, error: agenceProfilErrorDetail } = useAgenceProfil();
   const agenceId = agenceProfil?.id;
 
   const { data: nounous } = useQuery({
@@ -305,6 +305,25 @@ export default function EspaceAgence() {
   );
 
   const renderContent = () => {
+    if (agenceProfilError) {
+      return (
+        <div className="tab-content" style={{ textAlign: "center", padding: "40px 20px" }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1C1917" }}>
+            Impossible de charger votre profil agence
+          </h2>
+          <p style={{ color: "#78716C", fontSize: 14, marginTop: 8, maxWidth: 480, marginInline: "auto" }}>
+            {agenceProfilErrorDetail instanceof Error
+              ? agenceProfilErrorDetail.message
+              : "Une erreur inattendue est survenue."}
+            {" "}Déconnectez-vous puis reconnectez-vous ; si le problème persiste, la fiche agence n'a
+            peut-être pas été créée à l'inscription.
+          </p>
+          <button className="btn-add" style={{ marginTop: 16 }} onClick={onLogout}>
+            Se déconnecter
+          </button>
+        </div>
+      );
+    }
     switch (activeTab) {
       case "accueil": return renderAccueil();
       case "nounous": return <GestionNounous agenceId={agenceId} onBack={() => setActiveTab("accueil")} />;

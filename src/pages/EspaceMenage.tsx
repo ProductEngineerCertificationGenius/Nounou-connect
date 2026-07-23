@@ -129,24 +129,36 @@ export default function EspaceMenage() {
     window.open(`https://wa.me/${telephone.replace(/[^0-9]/g, "")}`, "_blank");
   };
 
+  // Un seul point d'entrée pour changer d'onglet : `activeTab` (utilisé
+  // pour l'état visuel actif du menu) et les flags showDemandes/showProfil
+  // (qui pilotent réellement ce qui est affiché, cf. return principal plus
+  // bas) doivent toujours changer ensemble. Avant ce correctif, le bouton
+  // "Accueil" ne mettait à jour que `activeTab` : depuis l'onglet Demandes
+  // ou Profil, cliquer sur Accueil (ou tout autre item) changeait la
+  // surbrillance du menu mais l'écran restait bloqué sur l'onglet précédent.
+  const handleGoTo = (tab: Tab) => {
+    setActiveTab(tab);
+    setShowDemandes(tab === "demandes");
+    setShowProfil(tab === "profil");
+    setShowSearch(false);
+    if (tab === "accueil") setView("list");
+  };
   const handleSearchClick = () => setShowSearch(true);
   const handleSearchClose = () => setShowSearch(false);
-  const handleDemandesClick = () => { setShowDemandes(true); setActiveTab("demandes"); };
-  const handleDemandesClose = () => setShowDemandes(false);
-  const handleProfilClick = () => { setShowProfil(true); setActiveTab("profil"); };
-  const handleProfilClose = () => setShowProfil(false);
+  const handleDemandesClose = () => handleGoTo("accueil");
+  const handleProfilClose = () => handleGoTo("accueil");
 
   const renderSidebar = () => (
     <aside className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
       <div className="sidebar-header"><Logo size={32} /><span className="sidebar-title">Nounou Connect</span></div>
       <nav className="sidebar-nav">
-        <button className={activeTab === "accueil" ? "active" : ""} onClick={() => { setActiveTab("accueil"); setView("list"); }}>
+        <button className={activeTab === "accueil" ? "active" : ""} onClick={() => handleGoTo("accueil")}>
           <Home size={20} /><span>Accueil</span>
         </button>
-        <button className={activeTab === "demandes" ? "active" : ""} onClick={handleDemandesClick}>
+        <button className={activeTab === "demandes" ? "active" : ""} onClick={() => handleGoTo("demandes")}>
           <FileText size={20} /><span>Demandes</span>
         </button>
-        <button className={activeTab === "profil" ? "active" : ""} onClick={handleProfilClick}>
+        <button className={activeTab === "profil" ? "active" : ""} onClick={() => handleGoTo("profil")}>
           <User size={20} /><span>Profil</span>
         </button>
       </nav>
@@ -311,15 +323,15 @@ export default function EspaceMenage() {
 
       {!showSearch && !showDemandes && !showProfil && (
         <nav className="bottom-nav">
-          <button className={activeTab === "accueil" ? "active" : ""} onClick={() => { setActiveTab("accueil"); setView("list"); }}>
+          <button className={activeTab === "accueil" ? "active" : ""} onClick={() => handleGoTo("accueil")}>
             <div className="nav-icon-wrapper"><Home size={18} /></div>
             <span>Accueil</span>
           </button>
-          <button className={activeTab === "demandes" ? "active" : ""} onClick={handleDemandesClick}>
+          <button className={activeTab === "demandes" ? "active" : ""} onClick={() => handleGoTo("demandes")}>
             <div className="nav-icon-wrapper"><FileText size={18} /></div>
             <span>Demandes</span>
           </button>
-          <button className={activeTab === "profil" ? "active" : ""} onClick={handleProfilClick}>
+          <button className={activeTab === "profil" ? "active" : ""} onClick={() => handleGoTo("profil")}>
             <div className="nav-icon-wrapper"><User size={18} /></div>
             <span>Profil</span>
           </button>

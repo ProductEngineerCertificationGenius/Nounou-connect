@@ -32,3 +32,30 @@ export const supabase = createClient(
     },
   }
 );
+
+// Le store zustand (useAuthStore, persisté séparément en localStorage) et
+// la session Supabase Auth peuvent diverger : déconnexion, expiration de
+// session, ou reconnexion avec un autre numéro dans le même navigateur.
+// Sans ce listener, l'app continue d'utiliser la fiche profil obsolète du
+// store pour interroger la base avec le user_id de la NOUVELLE session
+// Supabase → requêtes qui ne trouvent rien (406) puis écritures refusées
+// par les policies RLS (403). On importe dynamiquement pour éviter un
+// cycle d'imports (useAuthStore n'a pas besoin de connaître supabase.ts).
+if (isSupabaseConfigured && typeof window !== "undefined") {
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    const { useAuthStore } = await import("../store/useAuthStore");
+    const storedUserId = useAuthStore.getState().user?.user_id;
+
+    if (event === "SIGNED_OUT" || !session) {
+      if (storedUserId) useAuthStore.getState().logout();
+      return;
+    }
+
+    if (storedUserId && storedUserId !== session.user.id) {
+      // Fiche locale associée à un autre compte : on force une
+      // reconnexion propre plutôt que de laisser l'app requêter avec
+      // des identifiants incohérents.
+      useAuthStore.getState().logout();
+    }
+  });
+}
