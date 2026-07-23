@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { getErrorMessage } from "../lib/errorHandler";
 import { normalizePhoneCI } from "../lib/phone";
 
 // ================================================================
@@ -223,7 +224,7 @@ function FormNounou({ agenceId, nounou, onClose }: FormNounouProps) {
       queryClient.invalidateQueries({ queryKey: ["nounous", "agence", agenceId] });
       onClose();
     },
-    onError: (err) => setServerError(err instanceof Error ? err.message : "Erreur lors de l'enregistrement."),
+    onError: (err) => setServerError(getErrorMessage(err)),
   });
 
   const handleSubmit = (e: React.FormEvent) => {

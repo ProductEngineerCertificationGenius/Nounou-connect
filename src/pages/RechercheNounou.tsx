@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useAuthStore } from "../store/useAuthStore";
+import { getErrorMessage } from "../lib/errorHandler";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 type Step = 1 | 2 | 3 | 4 | 5;
@@ -99,11 +100,7 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
     },
     onError: (err) => {
       console.error("[RechercheNounou] Erreur recherche:", err);
-      alert(
-        err instanceof Error
-          ? `Erreur lors de la recherche : ${err.message}`
-          : "Erreur lors de la recherche."
-      );
+      alert(getErrorMessage(err));
     },
   });
 
@@ -123,7 +120,7 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
       return agenceId;
     },
     onSuccess: (agenceId) => setDemandeEnvoyeeA(agenceId),
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur lors de l'envoi de la demande."),
+    onError: (err) => alert(getErrorMessage(err)),
   });
 
   const validateStep = (step: Step): boolean => {

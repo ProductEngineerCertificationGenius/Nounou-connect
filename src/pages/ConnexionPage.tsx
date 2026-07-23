@@ -5,6 +5,7 @@ import { Eye, EyeOff, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useConnexion, useDemanderResetPin } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
+import { getErrorMessage } from "../lib/errorHandler";
 import type { ProfileType } from "../store/useAuthStore";
 
 const PROFILE_LANDING: Record<ProfileType, string> = {
@@ -75,7 +76,7 @@ export default function ConnexionPage() {
       });
       navigate(PROFILE_LANDING[profileType]);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Erreur de connexion.");
+      setErrorMessage(getErrorMessage(err));
     }
   };
 
@@ -90,7 +91,7 @@ export default function ConnexionPage() {
         "La vérification par SMS a été retirée. Si vous avez perdu votre PIN, veuillez vous reconnecter avec votre compte existant ou créer un nouveau compte."
       );
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Erreur lors du traitement de la demande.");
+      setErrorMessage(getErrorMessage(err));
     }
   };
 

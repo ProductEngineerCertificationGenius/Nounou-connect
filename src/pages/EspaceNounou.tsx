@@ -16,6 +16,7 @@ import { Logo } from "../components/Logo";
 import { useLogout } from "../hooks/useAuth";
 import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { getErrorMessage } from "../lib/errorHandler";
 
 // ================================================================
 // Réécriture complète, branchée sur la table réelle `nounous`.
@@ -116,13 +117,24 @@ export default function EspaceNounou() {
   const toggleDisponible = useMutation({
     mutationFn: async () => {
       if (!profil) return;
-      const { error } = await supabase
+      // .select() force Supabase à renvoyer les lignes modifiées.
+      // Utile pour détecter un blocage RLS silencieux : dans ce cas
+      // l'UPDATE "réussit" (pas d'erreur) mais ne touche aucune ligne,
+      // et data ressort vide au lieu de contenir la ligne mise à jour.
+      const { data, error } = await supabase
         .from("nounous")
         .update({ disponible: !profil.disponible })
-        .eq("id", profil.id);
+        .eq("id", profil.id)
+        .select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Impossible de modifier la disponibilité (accès refusé par la base). Contactez votre agence."
+        );
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nounou", "profil", currentUser?.user_id] }),
+    onError: (err) => alert(getErrorMessage(err)),
   });
 
   const initiales = (profil?.nom || "?")
