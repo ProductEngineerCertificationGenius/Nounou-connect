@@ -19,19 +19,35 @@ export function useAgenceProfil() {
       // Récupérer le userId depuis la session Supabase auth
       const { data: { session } } = await supabase.auth.getSession();
       const authUserId = session?.user?.id;
-      
-      console.log("[useAgenceProfil] Session auth userId:", authUserId);
-      
+
       if (!authUserId) {
         throw new Error("Pas de session auth");
       }
-      
+
+      // Le store zustand (currentUser) est persisté en localStorage et peut
+      // référencer un compte différent de la session Supabase active
+      // (ex: reconnexion avec un autre numéro sans logout propre). Dans ce
+      // cas on ne veut pas requêter avec un user_id obsolète.
+      if (currentUser?.user_id && currentUser.user_id !== authUserId) {
+        throw new Error(
+          "Session incohérente : profil local différent du compte connecté. Reconnectez-vous."
+        );
+      }
+
+      // .maybeSingle() au lieu de .single() : une agence sans fiche encore
+      // créée (0 ligne) ne doit pas remonter un 406 générique mais un
+      // résultat exploitable (null) qu'on peut distinguer proprement.
       const { data, error } = await supabase
         .from("agences")
         .select("*")
         .eq("user_id", authUserId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
+      if (!data) {
+        throw new Error(
+          "Aucune fiche agence trouvée pour ce compte. La fiche n'a peut-être pas été créée à l'inscription."
+        );
+      }
       return data;
     },
   });

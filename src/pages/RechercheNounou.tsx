@@ -80,9 +80,15 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
         });
       }
       if (!matches?.length) return [];
+      // La vue `agences_public` (0007_calibrage_affichage.sql) expose la
+      // colonne sous le nom `note` (alias de agences.note_moyenne), pas
+      // `note_moyenne` directement. Sélectionner `note_moyenne` ici
+      // provoquait un 400 côté PostgREST (colonne inexistante), qui
+      // faisait échouer toute la recherche silencieusement (pas de
+      // onError sur cette mutation à l'époque).
       const { data, error: publicError } = await supabase
         .from("agences_public")
-        .select("id, nom, quartier, note_moyenne")
+        .select("id, nom, quartier, note_moyenne:note")
         .in("id", matches.map((a: { id: string }) => a.id));
       if (publicError) throw publicError;
       return data as AgenceResultat[];
@@ -90,6 +96,14 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
     onSuccess: (data) => {
       setResultats(data);
       setCurrentStep(5);
+    },
+    onError: (err) => {
+      console.error("[RechercheNounou] Erreur recherche:", err);
+      alert(
+        err instanceof Error
+          ? `Erreur lors de la recherche : ${err.message}`
+          : "Erreur lors de la recherche."
+      );
     },
   });
 
