@@ -12,7 +12,6 @@ import {
   Star,
   Briefcase,
   Shield,
-  DollarSign,
   Languages,
   ChevronLeft,
   ChevronRight,
@@ -212,7 +211,7 @@ export default function EspaceMenage() {
           {(nounou.langues ?? []).map((l) => <span key={l} className="tag">{l}</span>)}
         </div>
         <div className="nounou-card-footer">
-          <div className="nounou-prix-desktop"><DollarSign size={16} /><span>{nounou.tarif.toLocaleString()} FCFA</span></div>
+          <div className="nounou-prix-desktop"><span>{nounou.tarif.toLocaleString()} FCFA</span></div>
           {nounou.agence?.nom && <div className="nounou-agence"><Shield size={14} /><span>{nounou.agence.nom}</span></div>}
         </div>
       </div>
@@ -271,7 +270,7 @@ export default function EspaceMenage() {
               </div>
             </div>
             <div className="detail-actions">
-              <div className="detail-prix"><DollarSign size={20} color="#C2614F" /><span>{selectedNounou.tarif.toLocaleString()} FCFA</span><small>/ jour</small></div>
+              <div className="detail-prix"><span>{selectedNounou.tarif.toLocaleString()} FCFA</span><small>/ jour</small></div>
               <button className="contact-btn" onClick={() => handleContactWhatsApp(selectedNounou.telephone)}><Phone size={20} /> Contacter</button>
             </div>
           </div>

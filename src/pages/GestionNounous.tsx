@@ -9,7 +9,6 @@ import {
   MapPin,
   Star,
   Briefcase,
-  DollarSign,
   ChevronLeft,
   Camera,
   Save,
@@ -99,7 +98,6 @@ function NounouCard({
           <span className="note">{nounou.note_moyenne ?? "—"}</span>
         </div>
         <div className="nounou-price">
-          <DollarSign size={14} />
           <span>{nounou.tarif.toLocaleString()} FCFA</span>
           <small>/ jour</small>
         </div>
