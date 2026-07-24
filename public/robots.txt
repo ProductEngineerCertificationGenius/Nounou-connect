@@ -1,0 +1,119 @@
+# ============================================================
+# robots.txt - Nounou Connect
+# ============================================================
+# Ce fichier indique aux moteurs de recherche quelles pages
+# indexer et lesquelles ignorer.
+# ============================================================
+
+# ============================================================
+# Règle générale pour tous les bots
+# ============================================================
+
+User-agent: *
+Allow: /
+
+# Pages sensibles à ne PAS indexer
+Disallow: /api/
+Disallow: /admin/
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /reset-password
+Disallow: /espace-menage
+Disallow: /espace-agence
+Disallow: /espace-nounou
+
+# Fichiers inutiles à ne pas indexer
+Disallow: /*.json$
+Disallow: /*.xml$
+Disallow: /*.css$
+Disallow: /*.js$
+
+# Temps d'attente entre deux explorations (secondes)
+Crawl-delay: 2
+
+# ============================================================
+# Bots spécifiques - Google
+# ============================================================
+
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /reset-password
+Disallow: /espace-menage
+Disallow: /espace-agence
+Disallow: /espace-nounou
+Crawl-delay: 1
+
+# ============================================================
+# Bots spécifiques - Bing
+# ============================================================
+
+User-agent: Bingbot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /reset-password
+Disallow: /espace-menage
+Disallow: /espace-agence
+Disallow: /espace-nounou
+
+# ============================================================
+# Bots spécifiques - Yandex (Russie)
+# ============================================================
+
+User-agent: Yandex
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /reset-password
+Disallow: /espace-menage
+Disallow: /espace-agence
+Disallow: /espace-nounou
+
+# ============================================================
+# Bots spécifiques - DuckDuckGo
+# ============================================================
+
+User-agent: DuckDuckBot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+# ============================================================
+# Bloquer les scrappers / mauvais bots
+# ============================================================
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: MauiBot
+Disallow: /
+
+User-agent: DataForSeoBot
+Disallow: /
+
+# ============================================================
+# Sitemap (à modifier avec ton vrai domaine en production)
+# ============================================================
+
+Sitemap: https://nounouconnect.ci/sitemap.xml
+
+# ============================================================
+# Fin de robots.txt
+# ============================================================

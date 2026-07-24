@@ -1,3 +1,4 @@
+// src/lib/profiles.ts
 import type { ProfileType } from "../store/useAuthStore";
 
 export const PROFILE_TABLES: Record<ProfileType, string> = {

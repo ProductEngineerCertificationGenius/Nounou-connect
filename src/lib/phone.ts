@@ -1,3 +1,5 @@
+// src/lib/phone.ts
+
 // Normalise un numéro de téléphone saisi par l'utilisateur (espaces,
 // tirets, format local "0X XX XX XX XX") vers le format E.164 requis par
 // les fournisseurs SMS (Twilio...) branchés sur Supabase Auth.

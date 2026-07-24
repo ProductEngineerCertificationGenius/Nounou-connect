@@ -1,17 +1,7 @@
+// src/lib/errorHandler.ts
+
 // ============================================================
-// Traduction des erreurs techniques (Postgres/PostgREST via
-// Supabase, erreurs réseau, erreurs JS génériques) en messages
-// compréhensibles pour l'utilisateur final.
-//
-// Sans ça, l'utilisateur pouvait voir des messages du type :
-//   "new row violates row-level security policy for table \"nounous\""
-//   "duplicate key value violates unique constraint
-//    \"nounous_user_id_key\""
-// ... ce qui est le symptôme "erreurs qui s'affichent en brut".
-//
-// 🔧 Pour retrouver le message brut en dev (debug), voir le guide
-// DEBUG_ERRORS.md à la racine du projet — NE PAS activer
-// SHOW_RAW_ERRORS en production (voir explication du fichier).
+// Traduction des erreurs techniques en messages compréhensibles
 // ============================================================
 
 const SHOW_RAW_ERRORS = false;
@@ -21,8 +11,6 @@ interface KnownError {
   friendly: string;
 }
 
-// Erreurs "signature technique connue" -> message FR compréhensible.
-// Ordre important : on prend le premier qui matche.
 const KNOWN_ERRORS: KnownError[] = [
   {
     test: (msg) => msg.includes("row-level security policy"),
@@ -43,7 +31,7 @@ const KNOWN_ERRORS: KnownError[] = [
   {
     test: (msg) =>
       msg.toLowerCase().includes("invalid login credentials") ||
-      msg.toLowerCase().includes("invalid phone") && msg.toLowerCase().includes("password"),
+      (msg.toLowerCase().includes("invalid phone") && msg.toLowerCase().includes("password")),
     friendly: "Téléphone ou PIN incorrect.",
   },
   {
@@ -59,27 +47,12 @@ const KNOWN_ERRORS: KnownError[] = [
   },
 ];
 
-// Heuristique pour laisser passer tels quels les messages déjà
-// écrits à la main pour l'utilisateur dans le code (ex: `throw new
-// Error("Téléphone ou PIN incorrect.")` dans useAuth.ts) : ils sont
-// courts, en français, sans jargon Postgres/HTTP.
 function isLikelyUserFriendly(message: string): boolean {
   const technicalMarkers = [
-    "relation",
-    "constraint",
-    "column",
-    "syntax error",
-    "permission denied",
-    "violates",
-    "duplicate key",
-    "row-level security",
-    "JWT",
-    "PGRST",
-    "fetch",
-    "Failed to",
-    "TypeError",
-    "is not a function",
-    "undefined is not",
+    "relation", "constraint", "column", "syntax error",
+    "permission denied", "violates", "duplicate key",
+    "row-level security", "JWT", "PGRST", "fetch",
+    "Failed to", "TypeError", "is not a function", "undefined is not",
   ];
   if (technicalMarkers.some((m) => message.includes(m))) return false;
   if (message.length > 160) return false;
@@ -92,6 +65,7 @@ export const getErrorMessage = (error: any): string => {
     (typeof error?.response?.data === "string" ? error.response.data : undefined) ??
     error?.message ??
     "";
+
   const code: string | undefined = error?.code;
 
   if (SHOW_RAW_ERRORS) {
