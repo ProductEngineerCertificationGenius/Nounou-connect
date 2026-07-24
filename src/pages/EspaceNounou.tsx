@@ -1,5 +1,5 @@
 // src/pages/EspaceNounou.tsx
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   User,
@@ -9,22 +9,39 @@ import {
   CheckCircle,
   Clock,
   Heart,
-  FileText,
-  Calendar,
   MessageCircle,
   Building2,
   Users,
   Search,
   X,
-  ArrowRight,
+  Camera,
+  Edit2,
+  Save,
+  Phone,
+  Briefcase,
+  Languages,
+  Award,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { useLogout, useRejoindreAgence } from "../hooks/useAuth";
+import { useLogout } from "../hooks/useAuth";
 import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { getErrorMessage } from "../lib/errorHandler";
 
-type Tab = "profil" | "agences" | "demandes";
+const QUARTIERS = [
+  "Abobo",
+  "Cocody",
+  "Koumassi",
+  "Marcory",
+  "Plateau",
+  "Yopougon",
+  "Anyama",
+  "Bingerville",
+  "Grand-Bassam",
+  "Port-Bouët",
+];
 
 interface AgencePublique {
   id: string;
@@ -37,27 +54,26 @@ interface AgencePublique {
   photo_url?: string;
 }
 
-interface DemandeNounou {
-  id: string;
-  quartier: string;
-  besoin: string;
-  temps: string;
-  logement: string;
-  statut: string;
-  date: string;
-  menage?: { nom: string } | null;
-}
-
 export default function EspaceNounou() {
   const onLogout = useLogout();
   const currentUser = useAuthStore((s) => s.user);
-  const { nounouMode, nounouIdentifiant, setNounouMode, setNounouIdentifiant } = useAuthStore();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<Tab>("profil");
-  const [showRejoindreModal, setShowRejoindreModal] = useState(false);
-  const [identifiant, setIdentifiant] = useState("");
-  const [selectedAgence, setSelectedAgence] = useState<AgencePublique | null>(null);
-  const [searchQuartier, setSearchQuartier] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [filterQuartier, setFilterQuartier] = useState<string>("");
+  const [formData, setFormData] = useState({
+    nom: "",
+    telephone: "",
+    quartier: "",
+    ethnie: "",
+    experience: "",
+    tarif: "",
+  });
+
+  const hasAgence = Boolean(currentUser?.agence_id);
 
   // ===== PROFIL NOUNOU =====
   const { data: profil, refetch: refetchProfil } = useQuery({
@@ -81,99 +97,109 @@ export default function EspaceNounou() {
     },
   });
 
-  // ===== DEMANDES ASSIGNÉES =====
-  const { data: mesDemandes } = useQuery({
-    queryKey: ["demandes", "nounou", profil?.id],
-    enabled: Boolean(profil?.id) && isSupabaseConfigured && profil?.agence_id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("demandes")
-        .select("*, menage:menages(nom)")
-        .eq("nounou_assignee_id", profil!.id)
-        .order("date", { ascending: false });
-      if (error) throw error;
-      return data as DemandeNounou[];
-    },
-  });
-
-  // ===== AGENCES DU QUARTIER =====
+  // ===== AGENCES DU QUARTIER (pour le scroll) =====
   const { data: agencesQuartier } = useQuery({
-    queryKey: ["agences", "quartier", profil?.quartier],
-    enabled: Boolean(profil?.quartier) && isSupabaseConfigured,
+    queryKey: ["agences", "quartier", filterQuartier || profil?.quartier],
+    enabled: Boolean(profil?.quartier) && isSupabaseConfigured && !hasAgence,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("agences_public")
-        .select("*")
-        .eq("quartier", profil!.quartier)
-        .order("note", { ascending: false });
+      const quartierFilter = filterQuartier || profil!.quartier;
+      
+      let query = supabase.from("agences_public").select("*");
+      
+      if (quartierFilter !== "toutes") {
+        query = query.eq("quartier", quartierFilter);
+      }
+      
+      const { data, error } = await query.order("note", { ascending: false });
       if (error) throw error;
       return data as AgencePublique[];
     },
   });
 
-  // ===== TOGGLE DISPONIBILITÉ =====
-  const toggleDisponible = useMutation({
+  // ===== MISE À JOUR DU PROFIL =====
+  const updateProfil = useMutation({
     mutationFn: async () => {
       if (!profil) return;
-      const { data, error } = await supabase
-        .from("nounous")
-        .update({ disponible: !profil.disponible })
-        .eq("id", profil.id)
-        .select();
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        throw new Error("Impossible de modifier la disponibilité.");
+
+      let photo_url = profil.photo_url;
+
+      if (photoFile) {
+        const path = `nounous/${profil.id}/photo.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from("photos")
+          .upload(path, photoFile, { upsert: true });
+        if (uploadError) throw uploadError;
+        photo_url = supabase.storage.from("photos").getPublicUrl(path).data.publicUrl;
       }
+
+      const updateData: any = {
+        nom: formData.nom,
+        telephone: formData.telephone,
+        quartier: formData.quartier,
+        ethnie: formData.ethnie,
+        experience: formData.experience,
+        tarif: parseInt(formData.tarif) || 0,
+        photo_url,
+      };
+
+      const { error } = await supabase
+        .from("nounous")
+        .update(updateData)
+        .eq("id", profil.id);
+
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["nounou", "profil", currentUser?.user_id] });
+      setIsEditing(false);
+      setPhotoFile(null);
+      setPreviewUrl(null);
+      refetchProfil();
     },
     onError: (err) => alert(getErrorMessage(err)),
   });
 
-  // ===== REJOINDRE UNE AGENCE =====
-  const rejoindreAgence = useRejoindreAgence();
-
   // ===== CONTACT WHATSAPP =====
-  const handleWhatsAppContact = (telephone: string) => {
+  const handleWhatsAppContact = (telephone: string, message?: string) => {
     const cleanPhone = telephone.replace(/[^0-9]/g, "");
-    window.open(`https://wa.me/${cleanPhone}`, "_blank");
+    const encodedMessage = message ? encodeURIComponent(message) : "";
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank");
   };
 
-  // ===== FILTRAGE AGENCES =====
-  const filteredAgences = (agencesQuartier || []).filter((agence) =>
-    agence.nom.toLowerCase().includes(searchQuartier.toLowerCase())
-  );
-
-  // ===== MESSAGE D'ACCUEIL =====
-  const renderWelcomeMessage = () => {
-    if (profil?.agence_id) {
-      return (
-        <div className="welcome-message with-agence">
-          <div className="welcome-icon">✅</div>
-          <div>
-            <h4>Vous êtes rattachée à une agence</h4>
-            <p>Votre profil est visible par les familles. Gérez vos disponibilités et consultez vos demandes.</p>
-          </div>
-        </div>
-      );
+  // ===== HANDLE EDIT =====
+  const startEditing = () => {
+    if (profil) {
+      setFormData({
+        nom: profil.nom || "",
+        telephone: profil.telephone || "",
+        quartier: profil.quartier || "",
+        ethnie: profil.ethnie || "",
+        experience: profil.experience || "",
+        tarif: profil.tarif?.toString() || "",
+      });
+      setPreviewUrl(profil.photo_url || null);
     }
-    return (
-      <div className="welcome-message without-agence">
-        <div className="welcome-icon">🏢</div>
-        <div>
-          <h4>Vous n'avez pas encore d'agence</h4>
-          <p>Consultez la liste des agences de votre quartier et rejoignez celle qui vous correspond.</p>
-          <button className="btn-rejoindre" onClick={() => setActiveTab("agences")}>
-            Voir les agences <ArrowRight size={16} />
-          </button>
-        </div>
-      </div>
-    );
+    setIsEditing(true);
   };
 
-  // ===== RENDU PROFIL =====
-  const renderProfil = () => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setPreviewUrl(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = () => {
+    updateProfil.mutate();
+  };
+
+  // ============================================================
+  // RENDU PROFIL AVEC AGENCE (PAGE UNIQUE)
+  // ============================================================
+  const renderProfilAvecAgence = () => {
     const initiales = (profil?.nom || "?")
       .split(" ")
       .map((p: string) => p[0])
@@ -181,355 +207,373 @@ export default function EspaceNounou() {
       .join("")
       .toUpperCase();
 
+    const stars = Array.from({ length: 5 }, (_, i) => (
+      <Star
+        key={i}
+        size={18}
+        className={i < Math.floor(profil?.note_moyenne || 0) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}
+      />
+    ));
+
     return (
-      <>
-        <section className="profile-section">
-          <div className="profile-header">
-            <div className="avatar-wrapper">
-              {profil?.photo_url ? (
-                <img src={profil.photo_url} alt={profil?.nom} />
+      <div className="profil-container with-agence">
+        {/* En-tête avec avatar */}
+        <div className="profil-header">
+          <div className="avatar-wrapper">
+            {profil?.photo_url ? (
+              <img src={profil.photo_url} alt={profil.nom} />
+            ) : (
+              <div className="avatar-placeholder">{initiales}</div>
+            )}
+            {profil?.disponible && (
+              <span className="status-badge disponible">
+                <CheckCircle size={14} /> Disponible
+              </span>
+            )}
+          </div>
+          <div className="profil-info">
+            <h1>{profil?.nom || "Nounou"}</h1>
+            <div className="stars-container">{stars}</div>
+            <p className="note-text">{profil?.note_moyenne || "—"} / 5</p>
+          </div>
+        </div>
+
+        {/* Message info agence */}
+        <div className="agence-info-message">
+          <Building2 size={20} />
+          <span>
+            Vous êtes rattachée à <strong>{profil?.agence?.nom || "une agence"}</strong>
+          </span>
+          <span className="separator">•</span>
+          <MapPin size={16} />
+          <span>{profil?.agence?.quartier || profil?.quartier}</span>
+        </div>
+
+        {/* Cartes d'informations (sans Langues) */}
+        <div className="info-cards">
+          <div className="info-card">
+            <div className="info-card-icon"><Briefcase size={20} /></div>
+            <div className="info-card-content">
+              <span className="info-card-label">Expérience</span>
+              <span className="info-card-value">{profil?.experience || "Non renseigné"}</span>
+            </div>
+          </div>
+          <div className="info-card">
+            <div className="info-card-icon"><Award size={20} /></div>
+            <div className="info-card-content">
+              <span className="info-card-label">Ethnie</span>
+              <span className="info-card-value">{profil?.ethnie || "Non renseignée"}</span>
+            </div>
+          </div>
+          <div className="info-card">
+            <div className="info-card-icon"><MapPin size={20} /></div>
+            <div className="info-card-content">
+              <span className="info-card-label">Quartier</span>
+              <span className="info-card-value">{profil?.quartier || "—"}</span>
+            </div>
+          </div>
+          <div className="info-card">
+            <div className="info-card-icon"><Phone size={20} /></div>
+            <div className="info-card-content">
+              <span className="info-card-label">Téléphone</span>
+              <span className="info-card-value">{profil?.telephone || "—"}</span>
+            </div>
+          </div>
+          <div className="info-card">
+            <div className="info-card-icon"><Users size={20} /></div>
+            <div className="info-card-content">
+              <span className="info-card-label">Type de service</span>
+              <span className="info-card-value">{profil?.type_service || "Nounou"}</span>
+            </div>
+          </div>
+          <div className="info-card">
+            <div className="info-card-icon"><Heart size={20} /></div>
+            <div className="info-card-content">
+              <span className="info-card-label">Tarif</span>
+              <span className="info-card-value">{profil?.tarif ? `${profil.tarif.toLocaleString()} FCFA` : "—"}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Message contact agence */}
+        <div className="contact-agence-message">
+          <div className="message-icon">📝</div>
+          <div className="message-content">
+            <p className="message-title">Besoin de modifier vos informations ?</p>
+            <p className="message-text">
+              Pour modifier votre nom, tarif, expérience ou photo, contactez votre agence. 
+              Elle seule peut mettre à jour votre profil.
+            </p>
+          </div>
+          <button
+            className="btn-contact-agence"
+            onClick={() => handleWhatsAppContact(
+              profil?.agence?.telephone || profil?.telephone || "",
+              `Bonjour, je souhaite modifier mes informations sur mon profil Nounou Connect.\n\n👤 Nom: ${profil?.nom}\n📱 Téléphone: ${profil?.telephone}\n\nMerci de me contacter pour faire les mises à jour.`
+            )}
+          >
+            <MessageCircle size={18} />
+            Contacter mon agence
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // ============================================================
+  // RENDU PROFIL SANS AGENCE (avec agences en scroll)
+  // ============================================================
+  const renderProfilSansAgence = () => {
+    const initiales = (profil?.nom || "?")
+      .split(" ")
+      .map((p: string) => p[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+
+    const agences = agencesQuartier || [];
+
+    return (
+      <div className="profil-container without-agence">
+        {/* En-tête avec avatar et édition */}
+        <div className="profil-header editable">
+          <div className="avatar-wrapper" onClick={() => isEditing && fileInputRef.current?.click()}>
+            {previewUrl || profil?.photo_url ? (
+              <img src={previewUrl || profil?.photo_url} alt={profil?.nom} />
+            ) : (
+              <div className="avatar-placeholder">{initiales}</div>
+            )}
+            {isEditing && (
+              <div className="avatar-edit-overlay">
+                <Camera size={20} />
+                <span>Changer</span>
+              </div>
+            )}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+          </div>
+
+          <div className="profil-info">
+            <div className="name-edit">
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.nom}
+                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                  className="edit-input name-input"
+                  placeholder="Votre nom"
+                />
               ) : (
-                <div className="avatar-placeholder">{initiales}</div>
+                <h1>{profil?.nom || "Nounou"}</h1>
+              )}
+              {!isEditing && (
+                <button className="btn-edit" onClick={startEditing}>
+                  <Edit2 size={16} /> Modifier
+                </button>
               )}
             </div>
-            <div className="profile-info">
-              <div className="profile-name">
-                <h1>{profil?.nom || "..."}</h1>
-                <span className="role-badge">Nounou</span>
-                {profil?.agence_id && (
-                  <span className="agence-badge">✅ Rattachée</span>
-                )}
-                {nounouIdentifiant && (
-                  <span className="identifiant-badge">🆔 {nounouIdentifiant}</span>
-                )}
+
+            {!isEditing && profil?.note_moyenne != null && (
+              <div className="stars-container">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Star
+                    key={i}
+                    size={18}
+                    className={i < Math.floor(profil.note_moyenne || 0) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}
+                  />
+                ))}
+                <span className="note-text">{profil.note_moyenne} / 5</span>
               </div>
-              <div className="profile-meta">
-                <span><Star size={16} fill="#F59E0B" color="#F59E0B" /> {profil?.note_moyenne ?? "—"}/5</span>
-                <span><MapPin size={16} /> {profil?.quartier}</span>
+            )}
+          </div>
+
+          {isEditing && (
+            <div className="edit-actions">
+              <button className="btn-cancel-edit" onClick={() => setIsEditing(false)}>
+                <X size={18} /> Annuler
+              </button>
+              <button className="btn-save-edit" onClick={handleSave} disabled={updateProfil.isPending}>
+                <Save size={18} /> {updateProfil.isPending ? "..." : "Enregistrer"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Formulaire d'édition ou affichage (sans Langues) */}
+        {isEditing ? (
+          <div className="edit-form">
+            <div className="form-row">
+              <div className="form-group">
+                <label>Téléphone</label>
+                <input
+                  type="tel"
+                  value={formData.telephone}
+                  onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                  placeholder="07 XX XX XX XX"
+                />
               </div>
-              {profil?.agence && (
-                <div className="profile-agence">
-                  <Building2 size={14} />
-                  <span>{profil.agence.nom}</span>
-                  <span className="agence-separator">•</span>
-                  <span>{profil.agence.quartier}</span>
-                </div>
-              )}
+              <div className="form-group">
+                <label>Quartier</label>
+                <select
+                  value={formData.quartier}
+                  onChange={(e) => setFormData({ ...formData, quartier: e.target.value })}
+                >
+                  {QUARTIERS.map((q) => (
+                    <option key={q} value={q}>{q}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Ethnie</label>
+                <input
+                  type="text"
+                  value={formData.ethnie}
+                  onChange={(e) => setFormData({ ...formData, ethnie: e.target.value })}
+                  placeholder="Votre ethnie"
+                />
+              </div>
+              <div className="form-group">
+                <label>Expérience</label>
+                <input
+                  type="text"
+                  value={formData.experience}
+                  onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                  placeholder="Ex: 3 ans"
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Tarif (FCFA / mois)</label>
+                <input
+                  type="number"
+                  value={formData.tarif}
+                  onChange={(e) => setFormData({ ...formData, tarif: e.target.value })}
+                  placeholder="85000"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Affichage des infos (sans Langues) */
+          <div className="info-cards">
+            <div className="info-card">
+              <div className="info-card-icon"><Phone size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Téléphone</span>
+                <span className="info-card-value">{profil?.telephone || "—"}</span>
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-card-icon"><MapPin size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Quartier</span>
+                <span className="info-card-value">{profil?.quartier || "—"}</span>
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-card-icon"><Award size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Ethnie</span>
+                <span className="info-card-value">{profil?.ethnie || "Non renseignée"}</span>
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-card-icon"><Briefcase size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Expérience</span>
+                <span className="info-card-value">{profil?.experience || "Non renseigné"}</span>
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-card-icon"><Heart size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Tarif</span>
+                <span className="info-card-value">{profil?.tarif ? `${profil.tarif.toLocaleString()} FCFA` : "—"}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== SECTION AGENCES EN SCROLL ===== */}
+        <div className="agences-scroll-section">
+          <div className="agences-scroll-header">
+            <div className="header-left">
+              <h3>🏢 Agences disponibles</h3>
+              <span className="agences-count">{agences.length} agences</span>
+            </div>
+            <div className="filter-group">
+              <label>Filtrer par commune :</label>
+              <select
+                value={filterQuartier || "toutes"}
+                onChange={(e) => setFilterQuartier(e.target.value === "toutes" ? "" : e.target.value)}
+                className="filter-select"
+              >
+                <option value="toutes">🌍 Toutes les communes</option>
+                {QUARTIERS.map((q) => (
+                  <option key={q} value={q}>{q}</option>
+                ))}
+              </select>
             </div>
           </div>
 
-          <div className="stats-grid">
-            <div className="stat-card">
-              <span className="stat-number">{profil?.experience || "Non renseigné"}</span>
-              <span className="stat-label">Expérience</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-number">{profil?.tarif ? profil.tarif.toLocaleString() : "—"}</span>
-              <span className="stat-label">FCFA / jour</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-number">{profil?.langues?.length || 0}</span>
-              <span className="stat-label">Langues</span>
-            </div>
-          </div>
-
-          {profil?.langues && profil.langues.length > 0 && (
-            <div className="langues-section">
-              <span className="langues-label">🗣️ Langues :</span>
-              <div className="langues-tags">
-                {profil.langues.map((l: string) => (
-                  <span key={l} className="langue-tag">{l.trim()}</span>
+          {agences.length > 0 ? (
+            <div className="agences-scroll-wrapper">
+              <div className="agences-scroll">
+                {agences.map((agence) => (
+                  <div key={agence.id} className="agence-scroll-card">
+                    <div className="agence-card-content">
+                      <div className="agence-avatar-small">
+                        {agence.photo_url ? (
+                          <img src={agence.photo_url} alt={agence.nom} />
+                        ) : (
+                          <div className="agence-placeholder-small">🏢</div>
+                        )}
+                      </div>
+                      <div className="agence-info-small">
+                        <h4>{agence.nom}</h4>
+                        <div className="agence-meta-small">
+                          <span><MapPin size={12} /> {agence.quartier}</span>
+                          <span><Users size={12} /> {agence.nbNounous}</span>
+                          <span><Star size={12} className="text-yellow-400 fill-yellow-400" /> {agence.note || "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="btn-whatsapp-small"
+                      onClick={() => handleWhatsAppContact(
+                        agence.telephone,
+                        `Bonjour, je suis nounou et je souhaite rejoindre votre agence.\n\n👤 Nom: ${profil?.nom || "Nounou"}\n📱 Téléphone: ${profil?.telephone || "Non renseigné"}\n📍 Quartier: ${profil?.quartier || "Non renseigné"}\n\nPouvez-vous me donner plus d'informations sur votre agence ?`
+                      )}
+                    >
+                      <MessageCircle size={16} />
+                      Contacter
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
+          ) : (
+            <div className="empty-agences-scroll">
+              <Building2 size={40} />
+              <p>Aucune agence trouvée dans cette commune.</p>
+            </div>
           )}
-        </section>
 
-        {/* MESSAGE D'ACCUEIL */}
-        {renderWelcomeMessage()}
-
-        <section className="statut-section">
-          <div className="statut-card">
-            <div className="statut-info">
-              <span className="statut-icon">
-                {profil?.disponible ? <CheckCircle size={24} /> : <Clock size={24} />}
-              </span>
-              <div>
-                <span className="statut-label">Mon statut</span>
-                <span className={`statut-value ${profil?.disponible ? "disponible" : "indisponible"}`}>
-                  {profil?.disponible ? "✅ Disponible" : "❌ Indisponible"}
-                </span>
-              </div>
-            </div>
-            <button className="btn-toggle-statut" onClick={() => toggleDisponible.mutate()} disabled={toggleDisponible.isPending}>
-              {toggleDisponible.isPending ? "..." : profil?.disponible ? "Marquer indisponible" : "Marquer disponible"}
-            </button>
-          </div>
-        </section>
-
-        <div className="info-message">
-          <Heart size={20} color="#C2614F" />
-          <p>
-            {profil?.agence_id
-              ? `Pour modifier vos informations, contactez votre agence : ${profil?.agence?.nom}`
-              : "Pour modifier vos informations, veuillez rejoindre une agence."}
-          </p>
-        </div>
-
-        <button className="btn-logout" onClick={onLogout}>
-          <LogOut size={20} /> Se déconnecter
-        </button>
-      </>
-    );
-  };
-
-  // ===== RENDU AGENCES =====
-  const renderAgences = () => (
-    <section className="agences-section">
-      <div className="agences-header">
-        <h2>🏢 Agences de votre quartier</h2>
-        <p className="agences-subtitle">
-          {profil?.quartier
-            ? `Agences disponibles à ${profil.quartier}`
-            : "Veuillez renseigner votre quartier dans votre profil."}
-        </p>
-      </div>
-
-      <div className="search-bar">
-        <Search size={18} />
-        <input
-          type="text"
-          placeholder="Rechercher une agence..."
-          value={searchQuartier}
-          onChange={(e) => setSearchQuartier(e.target.value)}
-        />
-      </div>
-
-      <div className="agences-list">
-        {filteredAgences.length > 0 ? (
-          filteredAgences.map((agence) => (
-            <div key={agence.id} className="agence-card">
-              <div className="agence-card-header">
-                <div className="agence-avatar">
-                  {agence.photo_url ? (
-                    <img src={agence.photo_url} alt={agence.nom} />
-                  ) : (
-                    <div className="agence-placeholder">🏢</div>
-                  )}
-                </div>
-                <div className="agence-info">
-                  <h4>{agence.nom}</h4>
-                  <div className="agence-meta">
-                    <span><MapPin size={12} /> {agence.quartier}</span>
-                    <span><Users size={12} /> {agence.nbNounous} nounous</span>
-                    <span><Star size={12} fill="#F59E0B" color="#F59E0B" /> {agence.note || "—"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {agence.description && (
-                <p className="agence-description">{agence.description}</p>
-              )}
-
-              <div className="agence-actions">
-                <button
-                  className="btn-whatsapp-agence"
-                  onClick={() => handleWhatsAppContact(agence.telephone)}
-                >
-                  <MessageCircle size={16} />
-                  Contacter sur WhatsApp
-                </button>
-                <button
-                  className="btn-rejoindre-agence"
-                  onClick={() => {
-                    setSelectedAgence(agence);
-                    setShowRejoindreModal(true);
-                  }}
-                >
-                  Rejoindre cette agence
-                </button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="empty-agences">
-            <Building2 size={48} strokeWidth={1.5} />
-            <h3>Aucune agence trouvée</h3>
-            <p>Essayez de modifier votre recherche ou contactez le support.</p>
-            <button
-              className="btn-support"
-              onClick={() => window.open("https://wa.me/2250152242299", "_blank")}
-            >
-              <MessageCircle size={16} />
-              Contacter le support
-            </button>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-
-  // ===== RENDU DEMANDES =====
-  const renderDemandes = () => {
-    const besoinLabels: Record<string, string> = {
-      "Garde d'enfants": "👶",
-      "Aide ménagère": "🧹",
-      "Mixte (Garde + Ménage)": "👶🧹",
-    };
-
-    return (
-      <section className="demandes-section">
-        <h2 className="demandes-title">📋 Mes demandes</h2>
-        <p className="demandes-subtitle">
-          {profil?.agence_id
-            ? "Demandes assignées par votre agence"
-            : "Rejoignez une agence pour voir vos demandes"}
-        </p>
-
-        {profil?.agence_id ? (
-          <div className="demandes-list">
-            {(mesDemandes ?? []).length > 0 ? (
-              (mesDemandes ?? []).map((d) => (
-                <div key={d.id} className="demande-card">
-                  <div className="demande-card-header">
-                    <span className="demande-icon">{besoinLabels[d.besoin] || "📋"}</span>
-                    <div className="demande-content">
-                      <h4>{d.menage?.nom || "Famille"}</h4>
-                      <div className="demande-meta">
-                        <span><MapPin size={12} /> {d.quartier}</span>
-                        <span><Clock size={12} /> {d.temps}</span>
-                        <span>🏠 {d.logement}</span>
-                      </div>
-                    </div>
-                    <span className={`demande-statut ${d.statut === "Assignée" ? "assignee" : "attente"}`}>
-                      {d.statut}
-                    </span>
-                  </div>
-                  <div className="demande-card-footer">
-                    <Calendar size={12} />
-                    <span>
-                      {new Date(d.date).toLocaleDateString("fr-FR", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p style={{ color: "#78716C", fontSize: 14 }}>
-                Aucune demande assignée pour le moment.
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="empty-demandes">
-            <FileText size={48} strokeWidth={1.5} />
-            <h3>Rejoignez une agence</h3>
-            <p>Pour voir vos demandes, vous devez d'abord rejoindre une agence.</p>
-            <button className="btn-rejoindre" onClick={() => setActiveTab("agences")}>
-              Voir les agences
-            </button>
-          </div>
-        )}
-      </section>
-    );
-  };
-
-  // ===== MODAL REJOINDRE AGENCE =====
-  const renderRejoindreModal = () => {
-    if (!showRejoindreModal || !selectedAgence) return null;
-
-    const handleSubmitRejoindre = () => {
-      if (!identifiant || identifiant.length < 3) {
-        alert("Veuillez entrer un identifiant valide.");
-        return;
-      }
-      rejoindreAgence.mutate({
-        agenceId: selectedAgence.id,
-        identifiant: identifiant,
-      }, {
-        onSuccess: () => {
-          setShowRejoindreModal(false);
-          setIdentifiant("");
-          setSelectedAgence(null);
-          setNounouMode("avec-agence");
-          setNounouIdentifiant(identifiant);
-          refetchProfil();
-          alert("✅ Vous avez rejoint l'agence avec succès !");
-        },
-        onError: (err) => alert(getErrorMessage(err)),
-      });
-    };
-
-    return (
-      <div className="modal-overlay" onClick={() => setShowRejoindreModal(false)}>
-        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-          <button className="modal-close" onClick={() => setShowRejoindreModal(false)}>
-            <X size={20} />
-          </button>
-
-          <div className="modal-header">
-            <h3>Rejoindre {selectedAgence.nom}</h3>
-            <p>Entrez l'identifiant que l'agence vous a fourni.</p>
-          </div>
-
-          <div className="modal-body">
-            <div className="form-group">
-              <label>Identifiant</label>
-              <input
-                type="text"
-                placeholder="Entrez votre identifiant"
-                value={identifiant}
-                onChange={(e) => setIdentifiant(e.target.value)}
-              />
-              <p className="field-hint">
-                💡 L'identifiant vous a été fourni par l'agence après validation de votre dossier.
-              </p>
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => setShowRejoindreModal(false)}>
-                Annuler
-              </button>
-              <button
-                className="btn-confirm"
-                onClick={handleSubmitRejoindre}
-                disabled={rejoindreAgence.isPending || !identifiant}
-              >
-                {rejoindreAgence.isPending ? "..." : "✅ Rejoindre"}
-              </button>
-            </div>
+          <div className="rejoindre-message">
+            <p>💡 <strong>Vous n'avez pas encore d'agence ?</strong> Contactez une des agences ci-dessus pour rejoindre leur vivier.</p>
           </div>
         </div>
       </div>
     );
   };
-
-  // ===== BOTTOM NAV =====
-  const renderBottomNav = () => (
-    <nav className="bottom-nav">
-      <button className={activeTab === "profil" ? "active" : ""} onClick={() => setActiveTab("profil")}>
-        <div className={`nav-icon-wrapper ${activeTab === "profil" ? "active-icon" : ""}`}>
-          <User size={20} />
-        </div>
-        <span>Profil</span>
-      </button>
-      <button className={activeTab === "agences" ? "active" : ""} onClick={() => setActiveTab("agences")}>
-        <div className={`nav-icon-wrapper ${activeTab === "agences" ? "active-icon" : ""}`}>
-          <Building2 size={20} />
-        </div>
-        <span>Agences</span>
-      </button>
-      <button className={activeTab === "demandes" ? "active" : ""} onClick={() => setActiveTab("demandes")}>
-        <div className={`nav-icon-wrapper ${activeTab === "demandes" ? "active-icon" : ""}`}>
-          <FileText size={20} />
-        </div>
-        <span>Demandes</span>
-      </button>
-    </nav>
-  );
 
   // ============================================================
   // RENDU PRINCIPAL
@@ -540,6 +584,11 @@ export default function EspaceNounou() {
         <div className="header-left">
           <Logo size={28} />
           <span className="header-title">Nounou Connect</span>
+          {hasAgence ? (
+            <span className="header-badge with-agence">✅ Rattachée</span>
+          ) : (
+            <span className="header-badge without-agence">⏳ Sans agence</span>
+          )}
         </div>
         <button className="btn-logout-header" onClick={onLogout}>
           <LogOut size={20} />
@@ -547,44 +596,64 @@ export default function EspaceNounou() {
       </header>
 
       <main className="nounou-content">
-        {activeTab === "profil" && renderProfil()}
-        {activeTab === "agences" && renderAgences()}
-        {activeTab === "demandes" && renderDemandes()}
+        {hasAgence ? renderProfilAvecAgence() : renderProfilSansAgence()}
       </main>
 
-      {renderBottomNav()}
-      {renderRejoindreModal()}
-
       <style>{`
+        /* ============================================================ */
+        /* PAGE PRINCIPALE                                              */
+        /* ============================================================ */
         .espace-nounou {
           min-height: 100vh;
-          background: #FBF9F7;
-          font-family: "Inter", sans-serif;
-          padding-bottom: 80px;
+          background: #F5F0EB;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          padding-bottom: 20px;
         }
 
+        /* ============================================================ */
+        /* HEADER                                                       */
+        /* ============================================================ */
         .nounou-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 16px 20px;
+          padding: 14px 20px;
           background: white;
-          border-bottom: 1px solid rgba(212, 184, 150, 0.12);
+          border-bottom: 1px solid rgba(212, 184, 150, 0.15);
           position: sticky;
           top: 0;
           z-index: 50;
+          box-shadow: 0 2px 12px rgba(28, 25, 23, 0.04);
         }
 
         .header-left {
           display: flex;
           align-items: center;
           gap: 10px;
+          flex-wrap: wrap;
         }
 
         .header-title {
           font-size: 18px;
           font-weight: 700;
-          color: #4A3520;
+          color: #1C1917;
+        }
+
+        .header-badge {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 3px 12px;
+          border-radius: 50px;
+        }
+
+        .header-badge.with-agence {
+          background: #D1FAE5;
+          color: #065F46;
+        }
+
+        .header-badge.without-agence {
+          background: #FEF3C7;
+          color: #92400E;
         }
 
         .btn-logout-header {
@@ -605,1022 +674,845 @@ export default function EspaceNounou() {
           color: #DC2626;
         }
 
+        /* ============================================================ */
+        /* CONTENU                                                      */
+        /* ============================================================ */
         .nounou-content {
-          max-width: 600px;
+          max-width: 1000px;
           margin: 0 auto;
           padding: 16px 20px 20px;
         }
 
-        .welcome-message {
-          display: flex;
-          align-items: flex-start;
-          gap: 14px;
-          padding: 16px 18px;
-          border-radius: 14px;
-          margin-bottom: 16px;
-          border: 1px solid rgba(212, 184, 150, 0.12);
+        /* ============================================================ */
+        /* PROFIL AVEC AGENCE                                           */
+        /* ============================================================ */
+        .profil-container {
+          animation: fadeIn 0.3s ease;
         }
 
-        .welcome-message.with-agence {
-          background: #E8F5E8;
-          border-color: #4A7C59;
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
-        .welcome-message.without-agence {
-          background: #F8EDEE;
-          border-color: #C2614F;
-        }
-
-        .welcome-icon {
-          font-size: 28px;
-          flex-shrink: 0;
-        }
-
-        .welcome-message h4 {
-          font-size: 15px;
-          font-weight: 700;
-          color: #1C1917;
-          margin: 0 0 2px;
-        }
-
-        .welcome-message p {
-          font-size: 13px;
-          color: #78716C;
-          margin: 0;
-        }
-
-        .welcome-message .btn-rejoindre {
-          margin-top: 8px;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 6px 16px;
-          background: #C2614F;
-          color: white;
-          border: none;
-          border-radius: 50px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.25s ease;
-        }
-
-        .welcome-message .btn-rejoindre:hover {
-          background: #B25545;
-        }
-
-        .profile-section {
-          background: #F5EDE6;
-          border-radius: 16px;
-          padding: 20px;
-          margin-bottom: 16px;
-        }
-
-        .profile-header {
+        .profil-header {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 24px;
+          background: white;
+          border-radius: 20px;
+          padding: 24px 28px;
           margin-bottom: 16px;
+          border: 1px solid rgba(212, 184, 150, 0.08);
+          box-shadow: 0 2px 12px rgba(28, 25, 23, 0.04);
+          flex-wrap: wrap;
+        }
+
+        .profil-header.editable {
+          flex-wrap: wrap;
         }
 
         .avatar-wrapper {
+          position: relative;
           flex-shrink: 0;
         }
 
         .avatar-wrapper img {
-          width: 80px;
-          height: 80px;
+          width: 90px;
+          height: 90px;
           border-radius: 50%;
           object-fit: cover;
-          border: 3px solid white;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+          border: 3px solid #F2D6D8;
         }
 
         .avatar-placeholder {
-          width: 80px;
-          height: 80px;
+          width: 90px;
+          height: 90px;
           border-radius: 50%;
           background: #C2614F;
           color: white;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 28px;
+          font-size: 30px;
           font-weight: 700;
-          border: 3px solid white;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+          border: 3px solid #F2D6D8;
         }
 
-        .profile-name {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .profile-name h1 {
-          font-size: 20px;
-          font-weight: 700;
-          color: #4A3520;
-          margin: 0;
-        }
-
-        .role-badge {
-          font-size: 11px;
-          font-weight: 600;
-          background: #705334;
-          color: white;
-          padding: 2px 12px;
-          border-radius: 50px;
-        }
-
-        .agence-badge {
-          font-size: 10px;
-          font-weight: 600;
-          background: #D1FAE5;
-          color: #065F46;
-          padding: 2px 10px;
-          border-radius: 50px;
-        }
-
-        .identifiant-badge {
-          font-size: 10px;
-          font-weight: 600;
-          background: #FEF3C7;
-          color: #92400E;
-          padding: 2px 10px;
-          border-radius: 50px;
-        }
-
-        .profile-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          font-size: 13px;
-          color: #78716C;
-          margin-top: 4px;
-        }
-
-        .profile-meta span {
+        .status-badge {
+          position: absolute;
+          bottom: 4px;
+          right: 4px;
           display: flex;
           align-items: center;
           gap: 4px;
-        }
-
-        .profile-agence {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
-          color: #4A7C59;
-          margin-top: 4px;
-        }
-
-        .agence-separator {
-          color: #D4B896;
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 10px;
-          margin-bottom: 12px;
-        }
-
-        .stat-card {
-          background: white;
-          border-radius: 12px;
-          padding: 12px 8px;
-          text-align: center;
-          border: 1px solid rgba(212, 184, 150, 0.08);
-        }
-
-        .stat-number {
-          display: block;
-          font-size: 24px;
-          font-weight: 800;
-          color: #705334;
-        }
-
-        .stat-label {
-          display: block;
-          font-size: 11px;
-          color: #78716C;
-          font-weight: 500;
-          margin-top: 2px;
-        }
-
-        .langues-section {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 8px;
-          margin-top: 4px;
-        }
-
-        .langues-label {
-          font-size: 12px;
-          color: #78716C;
-          font-weight: 500;
-        }
-
-        .langues-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-
-        .langue-tag {
-          font-size: 11px;
-          padding: 2px 10px;
+          font-size: 10px;
+          font-weight: 700;
+          padding: 3px 10px;
           border-radius: 50px;
           background: white;
-          color: #6B5E4F;
+          border: 2px solid #4A7C59;
+          color: #4A7C59;
         }
 
-        .statut-section {
-          margin-bottom: 16px;
+        .status-badge.disponible {
+          background: #4A7C59;
+          color: white;
+          border-color: #4A7C59;
         }
 
-        .statut-card {
-          background: white;
-          border-radius: 14px;
-          padding: 16px 18px;
-          border: 1px solid rgba(212, 184, 150, 0.08);
+        .avatar-edit-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          background: rgba(28, 25, 23, 0.55);
           display: flex;
-          justify-content: space-between;
+          flex-direction: column;
           align-items: center;
-          flex-wrap: wrap;
-          gap: 10px;
+          justify-content: center;
+          color: white;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          gap: 2px;
+          cursor: pointer;
         }
 
-        .statut-info {
+        .avatar-wrapper:hover .avatar-edit-overlay {
+          opacity: 1;
+        }
+
+        .avatar-edit-overlay span {
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        .profil-info {
+          flex: 1;
+          min-width: 180px;
+        }
+
+        .profil-info h1 {
+          font-size: 24px;
+          font-weight: 700;
+          color: #1C1917;
+          margin: 0 0 4px 0;
+        }
+
+        .name-edit {
           display: flex;
           align-items: center;
           gap: 12px;
+          flex-wrap: wrap;
         }
 
-        .statut-icon {
-          color: #705334;
-        }
-
-        .statut-label {
-          display: block;
-          font-size: 12px;
-          color: #78716C;
-          font-weight: 500;
-        }
-
-        .statut-value {
-          display: block;
-          font-size: 15px;
+        .name-edit h1 {
+          font-size: 24px;
           font-weight: 700;
+          color: #1C1917;
+          margin: 0;
         }
 
-        .statut-value.disponible {
-          color: #4A7C59;
-        }
-
-        .statut-value.indisponible {
-          color: #E87A7A;
-        }
-
-        .btn-toggle-statut {
-          padding: 8px 18px;
+        .btn-edit {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
           border: 2px solid #F2D6D8;
           border-radius: 50px;
           background: transparent;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 600;
-          color: #705334;
+          color: #C2614F;
           cursor: pointer;
           transition: all 0.25s ease;
         }
 
-        .btn-toggle-statut:hover {
-          background: #F2D6D8;
+        .btn-edit:hover {
+          background: #F8EDEE;
+          border-color: #C2614F;
         }
 
-        .info-message {
+        .stars-container {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          margin-top: 2px;
+          flex-wrap: wrap;
+        }
+
+        .text-yellow-400 { color: #F59E0B; }
+        .fill-yellow-400 { fill: #F59E0B; }
+        .text-gray-300 { color: #D1D5DB; }
+
+        .note-text {
+          font-size: 13px;
+          color: #78716C;
+          margin-left: 6px;
+          font-weight: 500;
+        }
+
+        .edit-actions {
+          display: flex;
+          gap: 8px;
+          width: 100%;
+          margin-top: 8px;
+        }
+
+        .btn-cancel-edit {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          border: 2px solid #D4B896;
+          border-radius: 50px;
+          background: transparent;
+          font-size: 13px;
+          font-weight: 600;
+          color: #78716C;
+          cursor: pointer;
+          transition: all 0.25s ease;
+        }
+
+        .btn-cancel-edit:hover {
+          border-color: #C2614F;
+          color: #C2614F;
+        }
+
+        .btn-save-edit {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 20px;
+          background: #4A7C59;
+          border: none;
+          border-radius: 50px;
+          font-size: 13px;
+          font-weight: 600;
+          color: white;
+          cursor: pointer;
+          transition: all 0.25s ease;
+        }
+
+        .btn-save-edit:hover {
+          background: #3A6248;
+        }
+
+        .btn-save-edit:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        /* ============================================================ */
+        /* MESSAGE AGENCE                                               */
+        /* ============================================================ */
+        .agence-info-message {
           display: flex;
           align-items: center;
           gap: 10px;
-          background: #F8EDEE;
-          border-radius: 12px;
-          padding: 14px 16px;
-          border: 1px solid rgba(194, 97, 79, 0.12);
+          padding: 12px 20px;
+          background: #E8F5E8;
+          border-radius: 14px;
+          margin-bottom: 16px;
+          border: 1px solid #4A7C59;
+          color: #065F46;
+          font-size: 14px;
+          flex-wrap: wrap;
+        }
+
+        .agence-info-message .separator {
+          color: #4A7C59;
+          opacity: 0.5;
+        }
+
+        /* ============================================================ */
+        /* INFO CARDS                                                   */
+        /* ============================================================ */
+        .info-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 12px;
           margin-bottom: 16px;
         }
 
-        .info-message p {
-          font-size: 13px;
-          color: #78716C;
-          margin: 0;
-          line-height: 1.5;
+        .info-card {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 14px 18px;
+          background: white;
+          border-radius: 14px;
+          border: 1px solid rgba(212, 184, 150, 0.08);
+          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.03);
         }
 
-        .btn-logout {
-          width: 100%;
+        .info-card-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: #F8EDEE;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 10px;
-          padding: 14px;
-          background: transparent;
-          border: 2px solid #FEE2E2;
-          border-radius: 14px;
-          font-size: 15px;
+          color: #C2614F;
+          flex-shrink: 0;
+        }
+
+        .info-card-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .info-card-label {
+          display: block;
+          font-size: 11px;
           font-weight: 600;
-          color: #DC2626;
-          cursor: pointer;
-          transition: all 0.25s ease;
+          color: #78716C;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
         }
 
-        .btn-logout:hover {
-          background: #FEE2E2;
-          border-color: #DC2626;
+        .info-card-value {
+          display: block;
+          font-size: 14px;
+          font-weight: 600;
+          color: #1C1917;
+          word-break: break-word;
         }
 
-        .agences-section {
-          margin-top: 0;
+        /* ============================================================ */
+        /* CONTACT AGENCE MESSAGE                                       */
+        /* ============================================================ */
+        .contact-agence-message {
+          display: flex;
+          align-items: flex-start;
+          gap: 16px;
+          padding: 20px 24px;
+          background: linear-gradient(145deg, #FFF9F5, #F8EDEE);
+          border-radius: 16px;
+          border: 1px solid rgba(194, 97, 79, 0.12);
+          flex-wrap: wrap;
         }
 
-        .agences-header {
-          margin-bottom: 16px;
+        .message-icon {
+          font-size: 28px;
+          flex-shrink: 0;
         }
 
-        .agences-header h2 {
-          font-size: 20px;
+        .message-content {
+          flex: 1;
+          min-width: 180px;
+        }
+
+        .message-title {
+          font-size: 15px;
           font-weight: 700;
           color: #1C1917;
-          margin: 0 0 2px;
+          margin: 0 0 4px 0;
         }
 
-        .agences-subtitle {
+        .message-text {
           font-size: 13px;
           color: #78716C;
           margin: 0;
+          line-height: 1.6;
         }
 
-        .search-bar {
+        .btn-contact-agence {
           display: flex;
           align-items: center;
-          gap: 10px;
-          background: white;
-          border-radius: 12px;
-          padding: 10px 14px;
-          margin-bottom: 16px;
-          border: 1px solid rgba(212, 184, 150, 0.15);
+          gap: 8px;
+          padding: 10px 24px;
+          background: #25D366;
+          color: white;
+          border: none;
+          border-radius: 50px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
           transition: all 0.25s ease;
-        }
-
-        .search-bar:focus-within {
-          border-color: #C2614F;
-          box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.08);
-        }
-
-        .search-bar svg {
-          color: #78716C;
           flex-shrink: 0;
         }
 
-        .search-bar input {
-          flex: 1;
-          border: none;
-          background: transparent;
+        .btn-contact-agence:hover {
+          background: #1EBE5E;
+          transform: scale(1.02);
+        }
+
+        /* ============================================================ */
+        /* FORMULAIRE D'ÉDITION                                         */
+        /* ============================================================ */
+        .edit-form {
+          background: white;
+          border-radius: 16px;
+          padding: 20px 24px;
+          margin-bottom: 16px;
+          border: 1px solid rgba(212, 184, 150, 0.08);
+          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.03);
+        }
+
+        .edit-form .form-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+          margin-bottom: 14px;
+        }
+
+        .edit-form .form-row:last-child {
+          margin-bottom: 0;
+        }
+
+        .edit-form .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .edit-form .form-group label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #78716C;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+
+        .edit-form .form-group input,
+        .edit-form .form-group select {
+          padding: 10px 14px;
+          border: 2px solid #F2D6D8;
+          border-radius: 12px;
           font-size: 14px;
+          background: #FAF7F2;
+          color: #1C1917;
+          transition: all 0.25s ease;
+          font-family: inherit;
+          outline: none;
+        }
+
+        .edit-form .form-group input:focus,
+        .edit-form .form-group select:focus {
+          border-color: #C2614F;
+          background: white;
+          box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.06);
+        }
+
+        .edit-input {
+          padding: 8px 12px;
+          border: 2px solid #F2D6D8;
+          border-radius: 10px;
+          font-size: 18px;
+          font-weight: 700;
+          background: #FAF7F2;
           color: #1C1917;
           outline: none;
           font-family: inherit;
+          width: 100%;
+          max-width: 300px;
         }
 
-        .search-bar input::placeholder {
+        .edit-input:focus {
+          border-color: #C2614F;
+          background: white;
+          box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.06);
+        }
+
+        .edit-input.name-input {
+          font-size: 22px;
+        }
+
+        /* ============================================================ */
+        /* AGENCES EN SCROLL (SANS AGENCE)                              */
+        /* ============================================================ */
+        .agences-scroll-section {
+          margin-top: 16px;
+          background: white;
+          border-radius: 16px;
+          padding: 16px 20px 20px;
+          border: 1px solid rgba(212, 184, 150, 0.08);
+          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.03);
+        }
+
+        .agences-scroll-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 14px;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .agences-scroll-header .header-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .agences-scroll-header h3 {
+          font-size: 17px;
+          font-weight: 700;
+          color: #1C1917;
+          margin: 0;
+        }
+
+        .agences-count {
+          font-size: 12px;
           color: #78716C;
-          opacity: 0.6;
+          background: #F5F0EB;
+          padding: 2px 12px;
+          border-radius: 50px;
+          font-weight: 500;
         }
 
-        .agences-list {
+        .filter-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .filter-group label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #78716C;
+        }
+
+        .filter-select {
+          padding: 6px 12px;
+          border: 2px solid #F2D6D8;
+          border-radius: 10px;
+          font-size: 13px;
+          background: #FAF7F2;
+          color: #1C1917;
+          outline: none;
+          cursor: pointer;
+          font-family: inherit;
+          transition: all 0.25s ease;
+        }
+
+        .filter-select:focus {
+          border-color: #C2614F;
+          background: white;
+          box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.06);
+        }
+
+        .agences-scroll-wrapper {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .agences-scroll {
+          display: flex;
+          gap: 14px;
+          overflow-x: auto;
+          padding: 4px 0 12px;
+          scroll-behavior: smooth;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .agences-scroll::-webkit-scrollbar {
+          height: 4px;
+        }
+
+        .agences-scroll::-webkit-scrollbar-track {
+          background: #F5F0EB;
+          border-radius: 10px;
+        }
+
+        .agences-scroll::-webkit-scrollbar-thumb {
+          background: #D4B896;
+          border-radius: 10px;
+        }
+
+        .agence-scroll-card {
+          flex: 0 0 260px;
+          background: #FAF7F2;
+          border-radius: 14px;
+          padding: 14px 16px 16px;
+          border: 1px solid rgba(212, 184, 150, 0.1);
+          scroll-snap-align: start;
+          transition: all 0.3s ease;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          justify-content: space-between;
         }
 
-        .agence-card {
-          background: white;
-          border-radius: 14px;
-          padding: 16px;
-          border: 1px solid rgba(212, 184, 150, 0.08);
-          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.04);
-          transition: all 0.3s ease;
-        }
-
-        .agence-card:hover {
-          transform: translateY(-2px);
+        .agence-scroll-card:hover {
+          transform: translateY(-3px);
           box-shadow: 0 8px 24px rgba(28, 25, 23, 0.08);
+          border-color: rgba(194, 97, 79, 0.15);
         }
 
-        .agence-card-header {
+        .agence-card-content {
           display: flex;
-          gap: 12px;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          margin-bottom: 10px;
+        }
+
+        .agence-avatar-small {
+          flex-shrink: 0;
           margin-bottom: 8px;
         }
 
-        .agence-avatar {
-          flex-shrink: 0;
-        }
-
-        .agence-avatar img {
-          width: 48px;
-          height: 48px;
+        .agence-avatar-small img {
+          width: 52px;
+          height: 52px;
           border-radius: 50%;
           object-fit: cover;
           border: 2px solid #F5F0EB;
         }
 
-        .agence-placeholder {
-          width: 48px;
-          height: 48px;
+        .agence-placeholder-small {
+          width: 52px;
+          height: 52px;
           border-radius: 50%;
           background: #F2D6D8;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 20px;
+          font-size: 22px;
         }
 
-        .agence-info h4 {
+        .agence-info-small h4 {
           font-size: 15px;
-          font-weight: 600;
+          font-weight: 700;
           color: #1C1917;
-          margin: 0 0 4px;
+          margin: 0 0 4px 0;
         }
 
-        .agence-meta {
+        .agence-meta-small {
           display: flex;
-          flex-wrap: wrap;
+          justify-content: center;
           gap: 10px;
-          font-size: 12px;
+          font-size: 11px;
           color: #78716C;
+          flex-wrap: wrap;
         }
 
-        .agence-meta span {
+        .agence-meta-small span {
           display: flex;
           align-items: center;
           gap: 3px;
         }
 
-        .agence-description {
-          font-size: 13px;
-          color: #78716C;
-          line-height: 1.6;
-          margin: 0 0 12px;
+        .btn-whatsapp-small {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: 100%;
           padding: 8px 12px;
-          background: #FAF7F2;
-          border-radius: 8px;
-        }
-
-        .agence-actions {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .btn-whatsapp-agence {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 16px;
           background: #25D366;
           color: white;
           border: none;
-          border-radius: 50px;
+          border-radius: 10px;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s;
-          flex: 1;
-          justify-content: center;
+          transition: all 0.25s ease;
         }
 
-        .btn-whatsapp-agence:hover {
+        .btn-whatsapp-small:hover {
           background: #1EBE5E;
+          transform: scale(1.02);
         }
 
-        .btn-rejoindre-agence {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 16px;
-          background: #C2614F;
-          color: white;
-          border: none;
-          border-radius: 50px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-          flex: 1;
-          justify-content: center;
-        }
-
-        .btn-rejoindre-agence:hover {
-          background: #B25545;
-        }
-
-        .empty-agences {
+        .empty-agences-scroll {
           text-align: center;
-          padding: 40px 20px;
+          padding: 30px 20px;
           color: #78716C;
         }
 
-        .empty-agences svg {
+        .empty-agences-scroll svg {
           color: #D4B896;
-          margin-bottom: 12px;
+          margin-bottom: 8px;
         }
 
-        .empty-agences h3 {
-          font-size: 18px;
-          color: #1C1917;
-          margin-bottom: 4px;
-        }
-
-        .btn-support {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 24px;
-          background: #25D366;
-          color: white;
-          border: none;
-          border-radius: 50px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          margin-top: 12px;
-          transition: all 0.2s;
-        }
-
-        .btn-support:hover {
-          background: #1EBE5E;
-        }
-
-        .demandes-section {
-          margin-top: 0;
-        }
-
-        .demandes-title {
-          font-size: 20px;
-          font-weight: 700;
-          color: #1C1917;
-          margin: 0 0 2px;
-        }
-
-        .demandes-subtitle {
-          font-size: 13px;
-          color: #78716C;
-          margin: 0 0 16px;
-        }
-
-        .demandes-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .demande-card {
-          background: white;
-          border-radius: 14px;
-          padding: 14px 16px;
-          border: 1px solid rgba(212, 184, 150, 0.15);
-          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.04);
-        }
-
-        .demande-card-header {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-        }
-
-        .demande-icon {
-          font-size: 20px;
-          flex-shrink: 0;
-        }
-
-        .demande-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .demande-content h4 {
-          font-size: 15px;
-          font-weight: 700;
-          color: #1C1917;
-          margin: 0 0 4px;
-        }
-
-        .demande-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          font-size: 12px;
-          color: #78716C;
-        }
-
-        .demande-meta span {
-          display: flex;
-          align-items: center;
-          gap: 3px;
-        }
-
-        .demande-statut {
-          font-size: 11px;
-          font-weight: 600;
-          padding: 3px 10px;
-          border-radius: 50px;
-          white-space: nowrap;
-        }
-
-        .demande-statut.assignee {
-          background: #E8F5E8;
-          color: #4A7C59;
-        }
-
-        .demande-statut.attente {
-          background: #F2D6D8;
-          color: #C2614F;
-        }
-
-        .demande-card-footer {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 11px;
-          color: #78716C;
-          margin-top: 10px;
-          padding-top: 10px;
-          border-top: 1px solid #F5F0EB;
-        }
-
-        .empty-demandes {
-          text-align: center;
-          padding: 40px 20px;
-          color: #78716C;
-        }
-
-        .empty-demandes svg {
-          color: #D4B896;
-          margin-bottom: 12px;
-        }
-
-        .empty-demandes h3 {
-          font-size: 18px;
-          color: #1C1917;
-          margin-bottom: 4px;
-        }
-
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(28, 25, 23, 0.5);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 2000;
-          padding: 20px;
-        }
-
-        .modal-content {
-          background: white;
-          border-radius: 16px;
-          max-width: 420px;
-          width: 100%;
-          padding: 24px;
-          animation: slideUp 0.3s ease;
-          position: relative;
-        }
-
-        @keyframes slideUp {
-          from {
-            transform: translateY(20px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-
-        .modal-close {
-          position: absolute;
-          top: 12px;
-          right: 12px;
-          background: transparent;
-          border: none;
-          color: #78716C;
-          cursor: pointer;
-          padding: 4px;
-          border-radius: 50%;
-          transition: all 0.2s;
-        }
-
-        .modal-close:hover {
-          background: #F5F0EB;
-          color: #1C1917;
-        }
-
-        .modal-header {
-          margin-bottom: 16px;
-        }
-
-        .modal-header h3 {
-          font-size: 18px;
-          font-weight: 700;
-          color: #1C1917;
-          margin: 0 0 4px;
-        }
-
-        .modal-header p {
-          font-size: 14px;
-          color: #78716C;
-          margin: 0;
-        }
-
-        .modal-body {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .form-group label {
-          font-size: 14px;
-          font-weight: 600;
-          color: #1C1917;
-        }
-
-        .form-group input {
-          width: 100%;
-          padding: 12px 14px;
-          border: 1.5px solid #D4B896;
+        .rejoindre-message {
+          margin-top: 14px;
+          padding: 12px 16px;
+          background: #FEF3C7;
           border-radius: 12px;
-          font-size: 15px;
-          background: #FAF7F2;
-          outline: none;
-          transition: border-color 0.2s;
+          border: 1px solid #F59E0B;
+          text-align: center;
+          font-size: 13px;
+          color: #92400E;
+        }
+
+        .rejoindre-message strong {
           color: #1C1917;
         }
 
-        .form-group input:focus {
-          border-color: #C2614F;
-        }
+        /* ============================================================ */
+        /* RESPONSIVE MOBILE                                            */
+        /* ============================================================ */
+        @media (max-width: 768px) {
+          .nounou-header {
+            padding: 10px 14px;
+          }
 
-        .field-hint {
-          font-size: 12px;
-          color: #78716C;
-          margin-top: 4px;
-        }
+          .header-title {
+            font-size: 15px;
+          }
 
-        .modal-actions {
-          display: flex;
-          gap: 10px;
-          justify-content: flex-end;
-        }
-
-        .btn-cancel {
-          padding: 10px 20px;
-          background: transparent;
-          border: 1.5px solid #F2D6D8;
-          border-radius: 50px;
-          font-size: 14px;
-          font-weight: 600;
-          color: #78716C;
-          cursor: pointer;
-          transition: all 0.25s ease;
-        }
-
-        .btn-cancel:hover {
-          border-color: #C2614F;
-          color: #C2614F;
-        }
-
-        .btn-confirm {
-          padding: 10px 24px;
-          background: #C2614F;
-          border: none;
-          border-radius: 50px;
-          font-size: 14px;
-          font-weight: 600;
-          color: white;
-          cursor: pointer;
-          transition: all 0.25s ease;
-        }
-
-        .btn-confirm:hover:not(:disabled) {
-          background: #B25545;
-          box-shadow: 0 4px 16px rgba(194, 97, 79, 0.3);
-        }
-
-        .btn-confirm:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .bottom-nav {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: rgba(255, 255, 255, 0.92);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 8px 12px 12px;
-          border-top: 1px solid rgba(212, 184, 150, 0.08);
-          box-shadow: 0 -4px 20px rgba(74, 53, 32, 0.04);
-          z-index: 100;
-        }
-
-        .bottom-nav button {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 2px;
-          background: transparent;
-          border: none;
-          color: #78716C;
-          cursor: pointer;
-          padding: 4px 16px;
-          font-size: 10px;
-          font-weight: 500;
-          transition: all 0.2s;
-          border-radius: 50px;
-        }
-
-        .bottom-nav button .nav-icon-wrapper {
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-        }
-
-        .bottom-nav button.active {
-          color: #705334;
-        }
-
-        .bottom-nav button.active .active-icon {
-          background: #705334;
-          color: white;
-        }
-
-        .bottom-nav button span {
-          font-size: 9px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          font-weight: 600;
-        }
-
-        @media (max-width: 480px) {
           .nounou-content {
-            padding: 12px 14px 16px;
+            padding: 12px 14px 20px;
           }
 
-          .profile-header {
-            flex-direction: column;
-            text-align: center;
-          }
-
-          .profile-name {
-            justify-content: center;
-          }
-
-          .profile-meta {
-            justify-content: center;
-          }
-
-          .profile-agence {
-            justify-content: center;
-          }
-
-          .stats-grid {
-            grid-template-columns: 1fr 1fr;
-          }
-
-          .stat-card:last-child {
-            grid-column: span 2;
-          }
-
-          .statut-card {
-            flex-direction: column;
-            text-align: center;
-          }
-
-          .statut-info {
-            flex-direction: column;
-          }
-
-          .btn-toggle-statut {
-            width: 100%;
-            justify-content: center;
-          }
-
-          .info-message {
-            flex-direction: column;
-            text-align: center;
-          }
-
-          .welcome-message {
-            flex-direction: column;
-            text-align: center;
-          }
-
-          .welcome-icon {
-            margin: 0 auto;
-          }
-
-          .agence-actions {
-            flex-direction: column;
-          }
-
-          .btn-whatsapp-agence,
-          .btn-rejoindre-agence {
-            width: 100%;
-          }
-
-          .bottom-nav button {
-            padding: 4px 12px;
-          }
-
-          .modal-content {
-            padding: 16px;
-          }
-
-          .modal-actions {
-            flex-direction: column;
-          }
-
-          .btn-cancel,
-          .btn-confirm {
-            width: 100%;
-            justify-content: center;
-          }
-
-          .agence-card-header {
+          .profil-header {
+            padding: 16px 18px;
+            gap: 16px;
             flex-direction: column;
             align-items: center;
             text-align: center;
           }
 
-          .agence-meta {
-            justify-content: center;
-          }
-        }
-
-        @media (min-width: 769px) {
-          .nounou-content {
-            max-width: 700px;
-            padding: 20px 24px 24px;
-          }
-
-          .profile-header {
-            gap: 24px;
-          }
-
           .avatar-wrapper img,
           .avatar-placeholder {
-            width: 100px;
-            height: 100px;
-            font-size: 32px;
-          }
-
-          .profile-name h1 {
+            width: 70px;
+            height: 70px;
             font-size: 24px;
           }
 
-          .stats-grid {
-            gap: 14px;
+          .profil-info {
+            text-align: center;
           }
 
-          .stat-number {
-            font-size: 28px;
+          .profil-info h1 {
+            font-size: 20px;
           }
 
-          .welcome-message {
-            flex-direction: row;
-            text-align: left;
+          .name-edit {
+            justify-content: center;
+          }
+
+          .edit-input.name-input {
+            font-size: 18px;
+            max-width: 100%;
+          }
+
+          .stars-container {
+            justify-content: center;
+          }
+
+          .info-cards {
+            grid-template-columns: 1fr;
+          }
+
+          .edit-form .form-row {
+            grid-template-columns: 1fr;
+          }
+
+          .agence-info-message {
+            font-size: 13px;
+            justify-content: center;
+            text-align: center;
+          }
+
+          .contact-agence-message {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 16px 18px;
+          }
+
+          .btn-contact-agence {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .agences-scroll-header {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .filter-group {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .filter-select {
+            width: 100%;
+          }
+
+          .agence-scroll-card {
+            flex: 0 0 220px;
+          }
+
+          .edit-actions {
+            flex-direction: column;
+            width: 100%;
+          }
+
+          .btn-cancel-edit,
+          .btn-save-edit {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .header-badge {
+            font-size: 9px;
+            padding: 2px 10px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .nounou-content {
+            padding: 8px 10px 16px;
+          }
+
+          .profil-header {
+            padding: 14px 14px;
+          }
+
+          .info-card {
+            padding: 12px 14px;
+          }
+
+          .agence-scroll-card {
+            flex: 0 0 180px;
+            padding: 12px 12px 14px;
+          }
+
+          .agence-info-small h4 {
+            font-size: 13px;
+          }
+
+          .agence-meta-small {
+            font-size: 10px;
+            gap: 6px;
+          }
+
+          .btn-whatsapp-small {
+            font-size: 12px;
+            padding: 6px 10px;
+          }
+
+          .contact-agence-message {
+            padding: 14px 16px;
+          }
+
+          .agences-scroll-section {
+            padding: 12px 14px 16px;
+          }
+        }
+
+        @media (min-width: 769px) and (max-width: 1024px) {
+          .info-cards {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .agence-scroll-card {
+            flex: 0 0 240px;
+          }
+        }
+
+        @media (min-width: 1025px) {
+          .info-cards {
+            grid-template-columns: repeat(3, 1fr);
           }
         }
       `}</style>

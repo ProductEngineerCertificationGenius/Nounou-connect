@@ -21,7 +21,7 @@ export default defineConfig({
       manifest: {
         name: 'Nounou Connect - Trouvez votre nounou de confiance',
         short_name: 'Nounou Connect',
-        description: 'Plateforme de mise en relation entre familles, agences et nounous en Côte d\'Ivoire',
+        description: "Plateforme de mise en relation entre familles, agences et nounous en Côte d'Ivoire",
         theme_color: '#C2614F',
         background_color: '#FAF7F2',
         display: 'standalone',
@@ -140,7 +140,7 @@ export default defineConfig({
         navigateFallbackAllowlist: [/^\/$/, /^\/inscription/, /^\/connexion/, /^\/espace-.*/],
       },
       devOptions: {
-        enabled: true,
+        enabled: false, // ✅ DÉSACTIVÉ EN DÉVELOPPEMENT - Plus de page "hors ligne"
         type: 'module',
         navigateFallback: 'index.html',
         suppressWarnings: true,
