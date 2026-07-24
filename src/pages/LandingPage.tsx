@@ -852,7 +852,7 @@ export default function LandingPage() {
                   <Search size={18} /> Commencer maintenant
                 </button>
                 <a
-                  href="#"
+                  href="https://wa.me/22597263298"
                   style={{
                     background: "rgba(255,255,255,0.1)",
                     color: "white",
