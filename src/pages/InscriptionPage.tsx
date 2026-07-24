@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Home, Building2, UserCheck, Eye, EyeOff, Shield, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { useInscription } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
 import type { ProfileType } from "../store/useAuthStore";
@@ -50,7 +49,8 @@ export default function InscriptionPage() {
   const [serverError, setServerError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const inscription = useInscription();
+  // 🔥 BACKEND DÉSACTIVÉ - on n'utilise pas useInscription pour le moment
+  // const inscription = useInscription();
 
   useEffect(() => {
     if (initialProfil) {
@@ -82,7 +82,7 @@ export default function InscriptionPage() {
     }
   };
 
-  // ===== SOUMISSION - VERSION SIMPLIFIÉE SANS VÉRIFICATION DB =====
+  // ===== SOUMISSION - MODE MOCK UNIQUEMENT =====
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setServerError("");
@@ -94,7 +94,6 @@ export default function InscriptionPage() {
       return;
     }
 
-    // ✅ Validation téléphone (uniquement format, pas de vérification DB)
     if (!validatePhoneNumber(formData.telephone)) {
       setPhoneError("Numéro invalide. Utilisez un format 07 XX XX XX XX");
       setIsLoading(false);
@@ -113,6 +112,10 @@ export default function InscriptionPage() {
         setIsLoading(false);
         return;
       }
+    }
+
+    // Ménage : nom + prénom requis
+    if (profil === "menage") {
       if (!formData.nom || !formData.prenom) {
         setServerError("Veuillez remplir votre nom et prénom.");
         setIsLoading(false);
@@ -120,7 +123,16 @@ export default function InscriptionPage() {
       }
     }
 
-    // Vérifications spécifiques nounou
+    // Agence : nom de l'agence requis (pas de prénom)
+    if (profil === "agence") {
+      if (!formData.nom) {
+        setServerError("Veuillez entrer le nom de votre agence.");
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Nounou : nom + prénom + ethnie requis
     if (profil === "nounou") {
       if (!formData.nom || !formData.prenom) {
         setServerError("Veuillez remplir votre nom et prénom.");
@@ -141,16 +153,23 @@ export default function InscriptionPage() {
 
     // 🔥 SIMULATION D'INSCRIPTION - PAS DE VÉRIFICATION DB
     try {
+      // Construire le nom complet selon le profil
+      let fullName = "";
+      if (profil === "agence") {
+        fullName = formData.nom; // Agence : seulement le nom
+      } else {
+        fullName = `${formData.prenom} ${formData.nom}`; // Ménage ou Nounou : prénom + nom
+      }
+
       // Créer un utilisateur fictif pour le store
       const fakeUser = {
         id: `fake-${Date.now()}`,
         user_id: `fake-user-${Date.now()}`,
-        nom: `${formData.prenom} ${formData.nom}`,
+        nom: fullName,
         telephone: formData.telephone,
         quartier: formData.quartier,
-        ...(profil === "nounou" && { ethnie: formData.ethnie }),
-        ...(profil === "agence" && { description: formData.description || "" }),
-        ...(profil === "nounou" && { agence_id: null, disponible: true }),
+        ...(profil === "nounou" && { ethnie: formData.ethnie, agence_id: null, disponible: true }),
+        ...(profil === "agence" && { description: formData.description || "", email: formData.email || "" }),
         created_at: new Date().toISOString(),
       };
 
@@ -250,28 +269,44 @@ export default function InscriptionPage() {
           <form onSubmit={handleSubmit} className="form-container">
             {/* NOM + PRÉNOM */}
             <div className="form-row">
-              <div className="form-group">
-                <label>Prénom <span className="required">*</span></label>
-                <input
-                  type="text"
-                  name="prenom"
-                  placeholder="Amenan"
-                  value={formData.prenom}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Nom <span className="required">*</span></label>
-                <input
-                  type="text"
-                  name="nom"
-                  placeholder={isAgence ? "Nounou Services" : "Koffi"}
-                  value={formData.nom}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+              {isAgence ? (
+                <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+                  <label>Nom de l'agence <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    name="nom"
+                    placeholder="Nounou Services"
+                    value={formData.nom}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label>Prénom <span className="required">*</span></label>
+                    <input
+                      type="text"
+                      name="prenom"
+                      placeholder="Amenan"
+                      value={formData.prenom}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Nom <span className="required">*</span></label>
+                    <input
+                      type="text"
+                      name="nom"
+                      placeholder="Koffi"
+                      value={formData.nom}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* TÉLÉPHONE */}
