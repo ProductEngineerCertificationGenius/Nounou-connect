@@ -326,7 +326,7 @@ export default function InscriptionPage() {
                 </button>
               </div>
               <p className="pin-hint">
-                💡 Ce PIN vous servira à vous reconnecter directement, sans recevoir de SMS à chaque fois.
+                💡 Ce PIN vous servira à vous reconnecter directement .
               </p>
             </div>
 
