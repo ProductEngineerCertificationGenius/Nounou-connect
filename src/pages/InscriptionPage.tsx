@@ -49,9 +49,6 @@ export default function InscriptionPage() {
   const [serverError, setServerError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // 🔥 BACKEND DÉSACTIVÉ - on n'utilise pas useInscription pour le moment
-  // const inscription = useInscription();
-
   useEffect(() => {
     if (initialProfil) {
       setProfil(initialProfil);
@@ -108,7 +105,7 @@ export default function InscriptionPage() {
         return;
       }
       if (!formData.quartier) {
-        setServerError("Veuillez sélectionner votre quartier.");
+        setServerError("Veuillez sélectionner votre commune.");
         setIsLoading(false);
         return;
       }
@@ -140,7 +137,7 @@ export default function InscriptionPage() {
         return;
       }
       if (!formData.quartier) {
-        setServerError("Veuillez sélectionner votre quartier.");
+        setServerError("Veuillez sélectionner votre commune.");
         setIsLoading(false);
         return;
       }
@@ -151,17 +148,15 @@ export default function InscriptionPage() {
       }
     }
 
-    // 🔥 SIMULATION D'INSCRIPTION - PAS DE VÉRIFICATION DB
+    // 🔥 SIMULATION D'INSCRIPTION
     try {
-      // Construire le nom complet selon le profil
       let fullName = "";
       if (profil === "agence") {
-        fullName = formData.nom; // Agence : seulement le nom
+        fullName = formData.nom;
       } else {
-        fullName = `${formData.prenom} ${formData.nom}`; // Ménage ou Nounou : prénom + nom
+        fullName = `${formData.prenom} ${formData.nom}`;
       }
 
-      // Créer un utilisateur fictif pour le store
       const fakeUser = {
         id: `fake-${Date.now()}`,
         user_id: `fake-user-${Date.now()}`,
@@ -173,11 +168,8 @@ export default function InscriptionPage() {
         created_at: new Date().toISOString(),
       };
 
-      // Stocker dans le store
       setUser(fakeUser);
       setProfileType(profil);
-
-      // Rediriger vers l'espace correspondant
       navigate(PROFILE_LANDING[profil]);
       
     } catch (err) {
@@ -259,7 +251,7 @@ export default function InscriptionPage() {
             {isMenage && "Remplissez vos informations pour commencer"}
             {isAgence && "Créez l'espace professionnel de votre agence"}
             {isNounou &&
-              "Inscrivez-vous pour être mise en relation avec une agence de votre quartier"}
+              "Inscrivez-vous pour être mise en relation avec une agence de votre commune"}
           </p>
 
           {serverError && (
@@ -329,11 +321,11 @@ export default function InscriptionPage() {
               {phoneError && <span className="error-message">{phoneError}</span>}
             </div>
 
-            {/* QUARTIER */}
+            {/* COMMUNE */}
             <div className="form-group">
-              <label>Quartier <span className="required">*</span></label>
+              <label>Commune <span className="required">*</span></label>
               <select name="quartier" value={formData.quartier} onChange={handleChange} required>
-                <option value="">Sélectionnez votre quartier</option>
+                <option value="">Sélectionnez votre commune</option>
                 <option value="Abobo">Abobo</option>
                 <option value="Cocody">Cocody</option>
                 <option value="Koumassi">Koumassi</option>
@@ -388,7 +380,7 @@ export default function InscriptionPage() {
               </>
             )}
 
-            {/* PIN : UNIQUEMENT pour Ménage et Agence (PAS pour Nounou) */}
+            {/* PIN : UNIQUEMENT pour Ménage et Agence */}
             {!isNounou && (
               <div className="form-group">
                 <label className="pin-label">
