@@ -1,5 +1,5 @@
 // src/pages/EspaceNounou.tsx
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   User,
@@ -11,6 +11,12 @@ import {
   Heart,
   FileText,
   Calendar,
+  Building2,
+  MessageCircle,
+  Camera,
+  Edit2,
+  Save,
+  X,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useLogout } from "../hooks/useAuth";
@@ -20,6 +26,23 @@ import { getErrorMessage } from "../lib/errorHandler";
 
 // ================================================================
 // Réécriture complète, branchée sur la table réelle `nounous`.
+//
+// Mise à jour (feature-noah, migration 0012_nounou_self_insert.sql) :
+// une nounou peut désormais exister SANS agence (auto-inscription).
+// L'écran "en attente" retiré ci-dessous a donc été réintroduit sous
+// une forme adaptée à notre schéma : `hasAgence` distingue les deux
+// cas, et une nounou sans agence voit une liste d'agences de son
+// quartier (vue publique `agences_public`) à contacter par WhatsApp
+// pour rejoindre un vivier — repris de la version feature-noah.
+//
+// Limite connue : l'édition du profil (nom, tarif, photo...) par la
+// nounou elle-même n'est PAS branchée ici, même pour une nounou sans
+// agence pourtant autorisée à `update` sa propre ligne (policy
+// nounous_update_self). Le upload de photo en particulier resterait
+// bloqué : la policy Storage `storage_photo_est_proprietaire`
+// (0009_storage_policy_stricte.sql) ne reconnaît que l'agence
+// propriétaire comme uploadeur, pas la nounou elle-même. L'activer
+// nécessiterait une nouvelle policy Storage dédiée à ce cas.
 //
 // Suppression majeure par rapport au design d'origine : l'écran
 // "profil en attente de validation par une agence" a été retiré. Ce
@@ -44,6 +67,30 @@ import { getErrorMessage } from "../lib/errorHandler";
 // et sur `menages_select_via_demande` (0007_calibrage_affichage.sql),
 // déjà posées côté base pour ce cas précis — seul l'écran manquait.
 // ================================================================
+
+const QUARTIERS = [
+  "Abobo",
+  "Cocody",
+  "Koumassi",
+  "Marcory",
+  "Plateau",
+  "Yopougon",
+  "Anyama",
+  "Bingerville",
+  "Grand-Bassam",
+  "Port-Bouët",
+];
+
+interface AgencePublique {
+  id: string;
+  nom: string;
+  quartier: string;
+  telephone: string;
+  description: string;
+  note: number;
+  nbNounous: number;
+  photo_url?: string;
+}
 
 type Tab = "profil" | "demandes";
 
@@ -113,6 +160,130 @@ export default function EspaceNounou() {
       return data as DemandeNounou[];
     },
   });
+
+  const hasAgence = Boolean(profil?.agence_id);
+
+  // ===== AGENCES DU QUARTIER (nounou sans agence uniquement) =====
+  const { data: agencesQuartier } = useQuery({
+    queryKey: ["agences", "quartier", profil?.quartier],
+    enabled: Boolean(profil?.quartier) && isSupabaseConfigured && !hasAgence,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("agences_public")
+        .select("*")
+        .eq("quartier", profil!.quartier)
+        .order("note", { ascending: false });
+      if (error) throw error;
+      return data as AgencePublique[];
+    },
+  });
+
+  const handleWhatsAppContact = (telephone: string, message?: string) => {
+    const cleanPhone = telephone.replace(/[^0-9]/g, "");
+    const encodedMessage = message ? encodeURIComponent(message) : "";
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank");
+  };
+
+  // ===== ÉDITION DU PROFIL (nounou sans agence uniquement) =====
+  // Autorisée par la policy RLS `nounous_update_self` (migration 0012)
+  // et, pour la photo, par la policy Storage étendue en 0013 : ni l'une
+  // ni l'autre n'existent pour une nounou rattachée à une agence, dont
+  // le profil reste modifiable uniquement par cette agence (inchangé).
+  const [isEditingProfil, setIsEditingProfil] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editFormData, setEditFormData] = useState({
+    nom: "",
+    telephone: "",
+    quartier: "",
+    ethnie: "",
+    experience: "",
+    tarif: "",
+  });
+  const [editError, setEditError] = useState("");
+
+  const startEditingProfil = () => {
+    if (profil) {
+      setEditFormData({
+        nom: profil.nom || "",
+        telephone: profil.telephone || "",
+        quartier: profil.quartier || "",
+        ethnie: profil.ethnie || "",
+        experience: profil.experience || "",
+        tarif: profil.tarif?.toString() || "",
+      });
+      setPreviewUrl(profil.photo_url || null);
+    }
+    setEditError("");
+    setIsEditingProfil(true);
+  };
+
+  const cancelEditingProfil = () => {
+    setIsEditingProfil(false);
+    setPhotoFile(null);
+    setPreviewUrl(null);
+    setEditError("");
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setPreviewUrl(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const updateProfilSelf = useMutation({
+    mutationFn: async () => {
+      if (!profil) return;
+
+      let photo_url = profil.photo_url;
+      if (photoFile) {
+        const path = `nounous/${profil.id}/photo.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from("photos")
+          .upload(path, photoFile, { upsert: true });
+        if (uploadError) throw uploadError;
+        photo_url = supabase.storage.from("photos").getPublicUrl(path).data.publicUrl;
+      }
+
+      const { data, error } = await supabase
+        .from("nounous")
+        .update({
+          nom: editFormData.nom,
+          telephone: editFormData.telephone,
+          quartier: editFormData.quartier,
+          ethnie: editFormData.ethnie || null,
+          experience: editFormData.experience || "Non renseigné",
+          tarif: parseInt(editFormData.tarif, 10) || 0,
+          photo_url,
+        })
+        .eq("id", profil.id)
+        .select();
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Impossible de modifier votre profil (accès refusé par la base)."
+        );
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nounou", "profil", currentUser?.user_id] });
+      setIsEditingProfil(false);
+      setPhotoFile(null);
+      setPreviewUrl(null);
+    },
+    onError: (err) => setEditError(getErrorMessage(err)),
+  });
+
+  const handleSaveProfil = (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditError("");
+    updateProfilSelf.mutate();
+  };
 
   const toggleDisponible = useMutation({
     mutationFn: async () => {
@@ -236,6 +407,197 @@ export default function EspaceNounou() {
     </>
   );
 
+  const renderSansAgence = () => {
+    const agences = agencesQuartier ?? [];
+    return (
+      <>
+        <section className="profile-section">
+          <div className="profile-header">
+            <div
+              className="avatar-wrapper editable"
+              onClick={() => isEditingProfil && fileInputRef.current?.click()}
+              style={{ cursor: isEditingProfil ? "pointer" : "default" }}
+            >
+              {previewUrl || profil?.photo_url ? (
+                <img src={previewUrl || profil?.photo_url} alt={profil?.nom} />
+              ) : (
+                <div className="avatar-placeholder" style={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 24 }}>
+                  {initiales}
+                </div>
+              )}
+              {isEditingProfil && (
+                <div className="avatar-edit-overlay">
+                  <Camera size={18} />
+                </div>
+              )}
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handlePhotoChange}
+                style={{ display: "none" }}
+              />
+            </div>
+            <div className="profile-info">
+              <div className="profile-name">
+                <h1>{profil?.nom || "..."}</h1>
+                <span className="role-badge without-agence">Sans agence</span>
+              </div>
+              <div className="profile-meta">
+                <span><MapPin size={16} /> {profil?.quartier}</span>
+              </div>
+            </div>
+            {!isEditingProfil && (
+              <button className="btn-edit-profil" onClick={startEditingProfil}>
+                <Edit2 size={16} /> Modifier
+              </button>
+            )}
+          </div>
+        </section>
+
+        {isEditingProfil ? (
+          <form onSubmit={handleSaveProfil} className="edit-profil-form">
+            {editError && <p className="edit-error">{editError}</p>}
+            <div className="edit-form-grid">
+              <div className="edit-form-group">
+                <label>Prénom et nom</label>
+                <input
+                  type="text"
+                  value={editFormData.nom}
+                  onChange={(e) => setEditFormData({ ...editFormData, nom: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="edit-form-group">
+                <label>Téléphone</label>
+                <input
+                  type="tel"
+                  value={editFormData.telephone}
+                  onChange={(e) => setEditFormData({ ...editFormData, telephone: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="edit-form-group">
+                <label>Quartier</label>
+                <select
+                  value={editFormData.quartier}
+                  onChange={(e) => setEditFormData({ ...editFormData, quartier: e.target.value })}
+                  required
+                >
+                  {QUARTIERS.map((q) => (
+                    <option key={q} value={q}>{q}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="edit-form-group">
+                <label>Ethnie <span className="optional">(optionnel)</span></label>
+                <input
+                  type="text"
+                  value={editFormData.ethnie}
+                  onChange={(e) => setEditFormData({ ...editFormData, ethnie: e.target.value })}
+                  placeholder="Akan, Baoulé, Malinké, etc."
+                />
+              </div>
+              <div className="edit-form-group">
+                <label>Expérience</label>
+                <input
+                  type="text"
+                  value={editFormData.experience}
+                  onChange={(e) => setEditFormData({ ...editFormData, experience: e.target.value })}
+                  placeholder="3 ans"
+                />
+              </div>
+              <div className="edit-form-group">
+                <label>Tarif (FCFA / jour)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editFormData.tarif}
+                  onChange={(e) => setEditFormData({ ...editFormData, tarif: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="edit-form-actions">
+              <button type="button" className="btn-cancel-edit" onClick={cancelEditingProfil}>
+                <X size={16} /> Annuler
+              </button>
+              <button type="submit" className="btn-save-edit" disabled={updateProfilSelf.isPending}>
+                <Save size={16} /> {updateProfilSelf.isPending ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="info-message">
+            <Building2 size={20} color="#C2614F" />
+            <p>
+              Vous n'êtes rattachée à aucune agence pour le moment. Contactez l'une des agences de{" "}
+              <strong>{profil?.quartier}</strong> ci-dessous pour rejoindre son vivier — une fois
+              ajoutée, votre profil sera géré par cette agence.
+            </p>
+          </div>
+        )}
+
+        <section className="statut-section">
+          <div className="statut-card">
+            <div className="statut-info">
+              <span className="statut-icon">
+                {profil?.disponible ? <CheckCircle size={24} /> : <Clock size={24} />}
+              </span>
+              <div>
+                <span className="statut-label">Mon statut</span>
+                <span className={`statut-value ${profil?.disponible ? "disponible" : "indisponible"}`}>
+                  {profil?.disponible ? "✅ Disponible" : "❌ Indisponible"}
+                </span>
+              </div>
+            </div>
+            <button className="btn-toggle-statut" onClick={() => toggleDisponible.mutate()} disabled={toggleDisponible.isPending}>
+              {toggleDisponible.isPending ? "..." : profil?.disponible ? "Marquer indisponible" : "Marquer disponible"}
+            </button>
+          </div>
+        </section>
+
+        <section className="agences-section">
+          <h3 className="agences-section-title">🏢 Agences de {profil?.quartier}</h3>
+          <div className="agences-list">
+            {agences.map((agence) => (
+              <div key={agence.id} className="agence-card">
+                <div className="agence-card-avatar">
+                  {agence.photo_url ? <img src={agence.photo_url} alt={agence.nom} /> : <span>🏢</span>}
+                </div>
+                <div className="agence-card-info">
+                  <h4>{agence.nom}</h4>
+                  <div className="agence-card-meta">
+                    <span><MapPin size={12} /> {agence.quartier}</span>
+                    <span><Star size={12} fill="#F59E0B" color="#F59E0B" /> {agence.note || "—"}</span>
+                    <span>{agence.nbNounous} nounou{agence.nbNounous > 1 ? "s" : ""}</span>
+                  </div>
+                </div>
+                <button
+                  className="btn-contact-agence-small"
+                  onClick={() =>
+                    handleWhatsAppContact(
+                      agence.telephone,
+                      `Bonjour, je suis nounou et je souhaite rejoindre votre agence.\n\n👤 Nom: ${profil?.nom || "Nounou"}\n📱 Téléphone: ${profil?.telephone || "Non renseigné"}\n📍 Quartier: ${profil?.quartier || "Non renseigné"}\n\nPouvez-vous me donner plus d'informations sur votre agence ?`
+                    )
+                  }
+                >
+                  <MessageCircle size={16} /> Contacter
+                </button>
+              </div>
+            ))}
+            {agences.length === 0 && (
+              <p style={{ color: "#78716C", fontSize: 14 }}>
+                Aucune agence trouvée pour l'instant dans votre quartier.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <button className="btn-logout" onClick={onLogout}><LogOut size={20} /> Se déconnecter</button>
+      </>
+    );
+  };
+
   const renderDemandes = () => (
     <section className="demandes-section">
       <h2 className="demandes-title">Mes demandes</h2>
@@ -283,7 +645,7 @@ export default function EspaceNounou() {
       </header>
 
       <main className="nounou-content">
-        {activeTab === "profil" ? renderProfil() : renderDemandes()}
+        {activeTab === "profil" ? (hasAgence ? renderProfil() : renderSansAgence()) : renderDemandes()}
       </main>
 
       <nav className="bottom-nav">
@@ -291,10 +653,12 @@ export default function EspaceNounou() {
           <div className={`nav-icon-wrapper ${activeTab === "profil" ? "active-icon" : ""}`}><User size={20} /></div>
           <span>Profil</span>
         </button>
-        <button className={activeTab === "demandes" ? "active" : ""} onClick={() => setActiveTab("demandes")}>
-          <div className={`nav-icon-wrapper ${activeTab === "demandes" ? "active-icon" : ""}`}><FileText size={20} /></div>
-          <span>Demandes</span>
-        </button>
+        {hasAgence && (
+          <button className={activeTab === "demandes" ? "active" : ""} onClick={() => setActiveTab("demandes")}>
+            <div className={`nav-icon-wrapper ${activeTab === "demandes" ? "active-icon" : ""}`}><FileText size={20} /></div>
+            <span>Demandes</span>
+          </button>
+        )}
       </nav>
 
       <style>{`
@@ -381,6 +745,166 @@ export default function EspaceNounou() {
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
         }
 
+        .avatar-placeholder {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: #705334;
+          color: white;
+          border: 3px solid white;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        .avatar-wrapper.editable {
+          transition: opacity 0.2s;
+        }
+
+        .avatar-wrapper.editable:hover {
+          opacity: 0.85;
+        }
+
+        .avatar-edit-overlay {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: rgba(28, 25, 23, 0.5);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .btn-edit-profil {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: white;
+          border: 1.5px solid #E8DDD0;
+          color: #1C1917;
+          padding: 8px 14px;
+          border-radius: 50px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          margin-left: auto;
+          align-self: flex-start;
+        }
+
+        .btn-edit-profil:hover {
+          border-color: #C2614F;
+          color: #C2614F;
+        }
+
+        .edit-profil-form {
+          background: white;
+          border-radius: 16px;
+          padding: 18px 20px;
+          margin-bottom: 16px;
+          border: 1px solid rgba(212, 184, 150, 0.15);
+          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.04);
+        }
+
+        .edit-error {
+          background: #FEE2E2;
+          color: #DC2626;
+          font-size: 13px;
+          padding: 8px 12px;
+          border-radius: 10px;
+          margin-bottom: 12px;
+        }
+
+        .edit-form-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+
+        .edit-form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .edit-form-group label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #78716C;
+        }
+
+        .edit-form-group .optional {
+          font-weight: 400;
+        }
+
+        .edit-form-group input,
+        .edit-form-group select {
+          padding: 10px 12px;
+          border: 1.5px solid #E8DDD0;
+          border-radius: 10px;
+          font-size: 14px;
+          background: #FAF7F2;
+          color: #1C1917;
+          outline: none;
+          font-family: inherit;
+        }
+
+        .edit-form-group input:focus,
+        .edit-form-group select:focus {
+          border-color: #C2614F;
+        }
+
+        .edit-form-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+
+        .btn-cancel-edit,
+        .btn-save-edit {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 10px 18px;
+          border-radius: 50px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-cancel-edit {
+          background: transparent;
+          border: 1.5px solid #E8DDD0;
+          color: #78716C;
+        }
+
+        .btn-cancel-edit:hover {
+          border-color: #C2614F;
+          color: #C2614F;
+        }
+
+        .btn-save-edit {
+          background: #C2614F;
+          border: none;
+          color: white;
+        }
+
+        .btn-save-edit:hover:not(:disabled) {
+          background: #B25545;
+        }
+
+        .btn-save-edit:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        @media (max-width: 480px) {
+          .edit-form-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
         .verify-badge {
           position: absolute;
           bottom: 2px;
@@ -418,6 +942,10 @@ export default function EspaceNounou() {
           color: white;
           padding: 2px 12px;
           border-radius: 50px;
+        }
+
+        .role-badge.without-agence {
+          background: #C2614F;
         }
 
         .profile-meta {
@@ -618,6 +1146,99 @@ export default function EspaceNounou() {
 
         .info-message strong {
           color: #1C1917;
+        }
+
+        .agences-section {
+          margin-bottom: 16px;
+        }
+
+        .agences-section-title {
+          font-size: 15px;
+          font-weight: 700;
+          color: #1C1917;
+          margin: 0 0 10px;
+        }
+
+        .agences-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .agence-card {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background: white;
+          border-radius: 14px;
+          padding: 12px 14px;
+          border: 1px solid rgba(212, 184, 150, 0.15);
+          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.04);
+        }
+
+        .agence-card-avatar {
+          width: 44px;
+          height: 44px;
+          flex-shrink: 0;
+          border-radius: 12px;
+          background: #F5F0EB;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          font-size: 20px;
+        }
+
+        .agence-card-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .agence-card-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .agence-card-info h4 {
+          font-size: 14px;
+          font-weight: 700;
+          color: #1C1917;
+          margin: 0 0 2px;
+        }
+
+        .agence-card-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          font-size: 11px;
+          color: #78716C;
+        }
+
+        .agence-card-meta span {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+        }
+
+        .btn-contact-agence-small {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: #25D366;
+          color: white;
+          border: none;
+          padding: 8px 14px;
+          border-radius: 50px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-contact-agence-small:hover {
+          background: #1EBE5E;
         }
 
         .btn-logout {

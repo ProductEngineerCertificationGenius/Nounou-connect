@@ -12,6 +12,10 @@ import {
   UserCheck,
   X,
   Inbox,
+  Baby,
+  Home,
+  Users,
+  Briefcase,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
@@ -47,6 +51,13 @@ interface DemandeAgence {
 interface NounouDispo {
   id: string;
   nom: string;
+}
+
+function getBesoinIcon(besoin: string) {
+  if (besoin === "Garde d'enfants") return <Baby size={14} />;
+  if (besoin === "Aide ménagère") return <Home size={14} />;
+  if (besoin === "Mixte (Garde + Ménage)") return <Users size={14} />;
+  return <Briefcase size={14} />;
 }
 
 function StatutBadge({ statut }: { statut: DemandeAgence["statut"] }) {
@@ -126,7 +137,7 @@ function DemandeCard({
         <div className="demande-infos">
           <div className="info-item">
             <span className="info-label">Besoin</span>
-            <span className="info-value">{demande.besoin}</span>
+            <span className="info-value">{getBesoinIcon(demande.besoin)} {demande.besoin}</span>
           </div>
           <div className="info-item">
             <span className="info-label">Temps</span>

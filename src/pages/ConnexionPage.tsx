@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { useConnexion, useDemanderResetPin } from "../hooks/useAuth";
+import { useConnexion } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
 import type { ProfileType } from "../store/useAuthStore";
@@ -26,7 +26,6 @@ const PROFILE_LANDING: Record<ProfileType, string> = {
 // et pour réinitialiser un PIN oublié (géré ici).
 export default function ConnexionPage() {
   const navigate = useNavigate();
-  const [screen, setScreen] = useState<"login" | "forgot-phone">("login");
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
   const [telephone, setTelephone] = useState("");
@@ -34,7 +33,6 @@ export default function ConnexionPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const connexion = useConnexion();
-  const demanderReset = useDemanderResetPin();
 
   // ===== GESTIONNAIRES DE SAISIE CHIFFRE PAR CHIFFRE =====
   const makeDigitHandler = (
@@ -80,22 +78,8 @@ export default function ConnexionPage() {
     }
   };
 
-  // ===== PIN OUBLIÉ : la vérification SMS a été retirée =====
-  const handleForgotPhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage("");
-    try {
-      await demanderReset.mutateAsync(telephone);
-      setScreen("login");
-      setErrorMessage(
-        "La vérification par SMS a été retirée. Si vous avez perdu votre PIN, veuillez vous reconnecter avec votre compte existant ou créer un nouveau compte."
-      );
-    } catch (err) {
-      setErrorMessage(getErrorMessage(err));
-    }
-  };
-
   const goToInscription = () => navigate("/inscription");
+  const goToResetPassword = () => navigate("/reset-password");
 
   return (
     <div className="connexion-page">
@@ -119,8 +103,7 @@ export default function ConnexionPage() {
             )}
 
             {/* ===== CONNEXION NORMALE : téléphone + PIN, 3 profils ===== */}
-            {screen === "login" && (
-              <>
+            <>
                 <h2 className="connexion-title">Se connecter</h2>
                 <p className="connexion-subtitle">Entrez votre téléphone et votre PIN</p>
 
@@ -185,7 +168,7 @@ export default function ConnexionPage() {
                     </div>
                   </div>
                   <div className="forgot-password">
-                    <a href="#" onClick={(e) => { e.preventDefault(); setErrorMessage(""); setScreen("forgot-phone"); }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); goToResetPassword(); }}>
                       PIN oublié ?
                     </a>
                   </div>
@@ -200,33 +183,7 @@ export default function ConnexionPage() {
                     S'inscrire
                   </a>
                 </p>
-              </>
-            )}
-
-            {/* ===== PIN OUBLIÉ : simplification sans SMS ===== */}
-            {screen === "forgot-phone" && (
-              <>
-                <h2 className="connexion-title">PIN oublié</h2>
-                <p className="connexion-subtitle">
-                  La vérification par SMS a été retirée. Entrez votre numéro pour revenir à la connexion.
-                </p>
-                <form onSubmit={handleForgotPhoneSubmit} className="connexion-form">
-                  <div className="form-group">
-                    <label>Numéro de téléphone</label>
-                    <input
-                      type="tel"
-                      placeholder="07 XX XX XX XX"
-                      value={telephone}
-                      onChange={(e) => setTelephone(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <button type="submit" className="submit-button" disabled={demanderReset.isPending}>
-                    {demanderReset.isPending ? "Traitement..." : "Retour à la connexion"}
-                  </button>
-                </form>
-              </>
-            )}
+            </>
           </div>
         </div>
       </div>

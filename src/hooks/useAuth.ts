@@ -26,9 +26,24 @@ import { useAuthStore, type ProfileType, type ProfileRow } from "../store/useAut
 
 async function fetchOrClaimProfile(
   profileType: ProfileType,
-  userId: string
+  userId: string,
+  // Auto-inscription nounou (sans agence, cf. migration
+  // 0012_nounou_self_insert.sql) : si fourni, on crée/récupère la
+  // fiche via nounou_self_register plutôt que via claim_nounou_profile,
+  // qui lui suppose une fiche déjà créée par une agence.
+  nounouSelfRegister?: { telephone: string; nom: string; quartier: string; ethnie?: string }
 ): Promise<ProfileRow | null> {
   if (profileType === "nounou") {
+    if (nounouSelfRegister) {
+      const { data, error } = await supabase.rpc("nounou_self_register", {
+        p_phone: nounouSelfRegister.telephone,
+        p_nom: nounouSelfRegister.nom,
+        p_quartier: nounouSelfRegister.quartier,
+        p_ethnie: nounouSelfRegister.ethnie ?? null,
+      });
+      if (error) throw error;
+      return data?.id ? data : null;
+    }
     // La fiche a pu être créée par une agence SANS user_id -> on passe
     // par la RPC sécurisée `claim_nounou_profile` (0005_nounou_telephone.sql),
     // qui rattache la ligne au premier appel et se contente de la
@@ -53,13 +68,23 @@ export function useInscription() {
       pin,
       profileType,
       pendingProfile,
+      nounouSelfRegister,
     }: {
       phone: string;
       pin: string;
       profileType: ProfileType;
       pendingProfile?: { nom: string; telephone: string; quartier: string };
+      // Auto-inscription nounou sans agence (feature Noah, cf.
+      // migration 0012). Si absent pour profileType === "nounou", on
+      // garde le comportement existant : rattachement à une fiche déjà
+      // créée par une agence via claim_nounou_profile.
+      nounouSelfRegister?: { nom: string; quartier: string; ethnie?: string };
     }) => {
       const normalizedPhone = normalizePhoneCI(phone);
+      const nounouSelfRegisterPayload =
+        profileType === "nounou" && nounouSelfRegister
+          ? { telephone: normalizedPhone, nom: nounouSelfRegister.nom, quartier: nounouSelfRegister.quartier, ethnie: nounouSelfRegister.ethnie }
+          : undefined;
       console.log("[useInscription] Début inscription:", { normalizedPhone, profileType, isSupabaseConfigured });
       
       if (!isSupabaseConfigured) {
@@ -101,7 +126,7 @@ export function useInscription() {
             }
             
             // Chercher ou créer la fiche
-            let row = await fetchOrClaimProfile(profileType, signInData.user.id);
+            let row = await fetchOrClaimProfile(profileType, signInData.user.id, nounouSelfRegisterPayload);
             
             if (!row && (profileType === "menage" || profileType === "agence")) {
               console.log("[useInscription] Création fiche manquante...");
@@ -130,7 +155,9 @@ export function useInscription() {
             if (!row) {
               throw new Error(
                 profileType === "nounou"
-                  ? "Aucune fiche nounou ne correspond à ce numéro. Vérifiez que votre agence a bien renseigné le même numéro de téléphone."
+                  ? nounouSelfRegisterPayload
+                    ? "Impossible de créer votre profil nounou. Réessayez dans quelques instants."
+                    : "Aucune fiche nounou ne correspond à ce numéro. Vérifiez que votre agence a bien renseigné le même numéro de téléphone."
                   : "Impossible de récupérer ou créer votre fiche profil."
               );
             }
@@ -193,7 +220,7 @@ export function useInscription() {
           row = created;
         }
       } else {
-        row = await fetchOrClaimProfile(profileType, data.user.id);
+        row = await fetchOrClaimProfile(profileType, data.user.id, nounouSelfRegisterPayload);
       }
 
       console.log("[useInscription] Succès, retour:", { userId: data.user.id, profileType, rowId: row?.id });

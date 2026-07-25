@@ -191,7 +191,7 @@ export default function LandingPage() {
           <span style={{ fontSize: 17, fontWeight: 700, color: "#1C1917", letterSpacing: "-0.3px" }}>Nounou Connect</span>
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a href="https://wa.me/22597263298" style={{ fontSize: 14, color: "#78716C", textDecoration: "none", fontWeight: 500 }}>Aide</a>
+          <a href="/aide" style={{ fontSize: 14, color: "#78716C", textDecoration: "none", fontWeight: 500 }}>Aide</a>
           <button
             onClick={onConnexion}
             style={{
@@ -542,7 +542,7 @@ export default function LandingPage() {
                         {step.titre}
                       </h3>
                       <p style={{ color: "#78716C", fontSize: 15, lineHeight: 1.65, maxWidth: 380 }}>{step.desc}</p>
-                      <a href="https://wa.me/22597263298" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, color: "#4A7C59", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
+                      <a href="/aide" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, color: "#4A7C59", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
                         En savoir plus <ArrowRight size={14} />
                       </a>
                     </div>
@@ -666,7 +666,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div style={{ textAlign: "right", marginTop: 20 }}>
-            <a href="#" style={{ color: "#4A7C59", fontWeight: 700, fontSize: 15, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <a href="/inscription?profil=menage" style={{ color: "#4A7C59", fontWeight: 700, fontSize: 15, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
               Voir toutes les nounous <ArrowRight size={15} />
             </a>
           </div>
@@ -852,7 +852,9 @@ export default function LandingPage() {
                   <Search size={18} /> Commencer maintenant
                 </button>
                 <a
-                  href="https://wa.me/22597263298"
+                  href="https://wa.me/2250152242299"
+                  target="_blank"
+                  rel="noreferrer"
                   style={{
                     background: "rgba(255,255,255,0.1)",
                     color: "white",
@@ -926,7 +928,7 @@ export default function LandingPage() {
             <div>
               <h4 style={{ color: "white", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Contact</h4>
               <p style={{ fontSize: 12, marginBottom: 4 }}>📧 contact@nounouconnect.ci</p>
-              <p style={{ fontSize: 12, marginBottom: 4 }}>📞 +225 XX XX XX XX</p>
+              <p style={{ fontSize: 12, marginBottom: 4 }}>📞 +225 01 52 24 22 99</p>
               <p style={{ fontSize: 12 }}>📍 Abidjan, Côte d'Ivoire</p>
             </div>
           </div>

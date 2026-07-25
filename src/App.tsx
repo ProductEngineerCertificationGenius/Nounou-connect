@@ -3,6 +3,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import InscriptionPage from "./pages/InscriptionPage";
 import ConnexionPage from "./pages/ConnexionPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import AidePage from "./pages/AidePage";
+import AProposPage from "./pages/AProposPage";
 import EspaceMenage from "./pages/EspaceMenage";
 import EspaceAgence from "./pages/EspaceAgence";
 import EspaceNounou from "./pages/EspaceNounou";
@@ -42,6 +45,9 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/inscription" element={<InscriptionPage />} />
       <Route path="/connexion" element={<ConnexionPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/aide" element={<AidePage />} />
+      <Route path="/a-propos" element={<AProposPage />} />
 
       <Route
         path="/espace-menage"
