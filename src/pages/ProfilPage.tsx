@@ -94,13 +94,13 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
 
       <div className="avatar-section">
         <div className="avatar-wrapper">
-          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 28, background: "#F2D6D8", color: "#C2614F" }}>
-            {initiales}
-          </div>
+          <div className="avatar-initials">{initiales}</div>
           <div className="avatar-badge"><Shield size={14} /></div>
         </div>
-        <h2>{profil?.nom || "..."}</h2>
-        <p className="profil-statut"><span className="statut-dot"></span>Compte actif</p>
+        <div className="avatar-info">
+          <h2>{profil?.nom || "..."}</h2>
+          <p className="profil-statut"><span className="statut-dot"></span>Compte actif</p>
+        </div>
       </div>
 
       <div className="infos-section">
@@ -290,31 +290,56 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
         /* AVATAR                                                       */
         /* ============================================================ */
         .avatar-section {
-          text-align: center;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          text-align: left;
+          background: var(--blanc);
+          border-radius: var(--radius-sm);
+          padding: 18px 20px;
           margin-bottom: 24px;
+          border: 1px solid rgba(212, 184, 150, 0.1);
+          box-shadow: var(--shadow);
         }
 
         .avatar-wrapper {
           position: relative;
-          display: inline-block;
+          width: 84px;
+          height: 84px;
+          flex-shrink: 0;
+        }
+
+        .avatar-wrapper img,
+        .avatar-initials {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          border: 4px solid var(--terracotta-lighter);
+          box-sizing: border-box;
         }
 
         .avatar-wrapper img {
-          width: 100px;
-          height: 100px;
-          border-radius: 50%;
           object-fit: cover;
-          border: 4px solid var(--terracotta-lighter);
+        }
+
+        .avatar-initials {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 26px;
+          background: var(--terracotta-lighter);
+          color: var(--terracotta);
         }
 
         .avatar-badge {
           position: absolute;
-          bottom: 2px;
-          right: 2px;
+          bottom: 0;
+          right: 0;
           background: var(--sauge);
           color: white;
-          width: 28px;
-          height: 28px;
+          width: 26px;
+          height: 26px;
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -322,19 +347,30 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
           border: 2px solid var(--blanc);
         }
 
-        .avatar-section h2 {
-          font-size: 22px;
+        .avatar-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+
+        .avatar-info h2 {
+          font-size: 20px;
           font-weight: 700;
           color: var(--gris-fonce);
-          margin: 8px 0 2px 0;
+          margin: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .profil-statut {
-          font-size: 14px;
-          color: var(--gris-moyen);
+          font-size: 13px;
+          color: var(--sauge);
+          font-weight: 600;
           display: flex;
           align-items: center;
-          justify-content: center;
+          justify-content: flex-start;
           gap: 6px;
         }
 
@@ -344,6 +380,7 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
           border-radius: 50%;
           background: var(--sauge);
           display: inline-block;
+          flex-shrink: 0;
         }
 
         /* ============================================================ */
@@ -457,13 +494,18 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
             font-size: 12px;
           }
 
-          .avatar-wrapper img {
-            width: 80px;
-            height: 80px;
+          .avatar-section {
+            padding: 14px 16px;
+            gap: 12px;
           }
 
-          .avatar-section h2 {
-            font-size: 19px;
+          .avatar-wrapper {
+            width: 64px;
+            height: 64px;
+          }
+
+          .avatar-info h2 {
+            font-size: 17px;
           }
 
           .infos-section {
