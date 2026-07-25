@@ -20,9 +20,11 @@ import {
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 
-// ===== HOOKS =====
+/* ================================================================ */
+/* ===== HOOKS ==================================================== */
+/* ================================================================ */
 function useIntersection(threshold = 0.2) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -35,6 +37,23 @@ function useIntersection(threshold = 0.2) {
     return () => obs.disconnect();
   }, [threshold]);
   return { ref, visible };
+}
+
+function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: string }) {
+  const [count, setCount] = useState(0);
+  const { ref, visible } = useIntersection(0.3);
+  useEffect(() => {
+    if (!visible) return;
+    let frame = 0;
+    const total = 60;
+    const timer = setInterval(() => {
+      frame++;
+      setCount(Math.round((frame / total) * target));
+      if (frame >= total) clearInterval(timer);
+    }, 16);
+    return () => clearInterval(timer);
+  }, [visible, target]);
+  return <span ref={ref}>{count}{suffix}</span>;
 }
 
 function FadeUp({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
@@ -53,7 +72,25 @@ function FadeUp({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
   );
 }
 
-// ===== NOUNOUS =====
+function SlideIn({ children, reverse = false, delay = 0 }: { children: React.ReactNode; reverse?: boolean; delay?: number }) {
+  const { ref, visible } = useIntersection(0.15);
+  return (
+    <div
+      ref={ref}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateX(0)" : `translateX(${reverse ? 60 : -60}px)`,
+        transition: `opacity 0.7s ease ${delay}ms, transform 0.7s cubic-bezier(0.22,1,0.36,1) ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ================================================================ */
+/* ===== NOUNOUS AVEC UI AVATARS =================================== */
+/* ================================================================ */
 const nounous = [
   {
     nom: "Marie K.",
@@ -81,34 +118,38 @@ const nounous = [
   },
 ];
 
-// ===== PAGE D'ACCUEIL =====
+/* ================================================================ */
+/* ===== PAGE D'ACCUEIL ============================================ */
+/* ================================================================ */
 export default function LandingPage() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
+  const [floatVisible, setFloatVisible] = useState(true);
   const lastScroll = useRef(0);
 
   useEffect(() => {
     const handleScroll = () => {
       const y = window.scrollY;
       setScrolled(y > 40);
+      setFloatVisible(y < lastScroll.current || y < 100);
       lastScroll.current = y;
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ===== NAVIGATION =====
-  const goToInscription = () => navigate("/inscription");
-  const goToInscriptionWithProfil = (profil: string) => navigate(`/inscription?profil=${profil}`);
-  const goToConnexion = () => navigate("/connexion");
-  const goToAide = () => navigate("/aide");
-  const goToAPropos = () => navigate("/a-propos");
-  
-  const handleWhatsAppContact = () => {
-    window.open("https://wa.me/2250152242299", "_blank");
+  const goToInscription = () => {
+    // Pas de profil pré-choisi (bouton générique du header) : on descend
+    // à la section "Qui êtes-vous ?" plutôt que de deviner un profil.
+    document.getElementById("qui-etes-vous")?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // ===== DONNÉES =====
+  const goToInscriptionWithProfil = (profil: string) => {
+    navigate(`/inscription?profil=${profil}`);
+  };
+
+  const onConnexion = () => navigate("/connexion");
+
   const steps = [
     { num: "01", titre: "Je découvre Nounou Connect", desc: "Des profils vérifiés, des agences partenaires.", card: { icon: <Sparkles size={28} />, titre: "Nounou Connect", sub: "Simple & rapide" }, bg: "#FAF7F2" },
     { num: "02", titre: "Je trouve en 5 minutes", desc: "Je choisis mon quartier. Marie est disponible.", card: { icon: <User size={28} />, titre: "Marie K.", sub: "📍 Koumassi", badge: "✅ Disponible", stars: true }, bg: "#F5EDE6" },
@@ -150,21 +191,9 @@ export default function LandingPage() {
           <span style={{ fontSize: 17, fontWeight: 700, color: "#1C1917", letterSpacing: "-0.3px" }}>Nounou Connect</span>
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <a href="/aide" style={{ fontSize: 14, color: "#78716C", textDecoration: "none", fontWeight: 500 }}>Aide</a>
           <button
-            onClick={goToAide}
-            style={{
-              fontSize: 14,
-              color: "#78716C",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontWeight: 500,
-            }}
-          >
-            Aide
-          </button>
-          <button
-            onClick={goToConnexion}
+            onClick={onConnexion}
             style={{
               background: "transparent",
               color: "#78716C",
@@ -188,7 +217,7 @@ export default function LandingPage() {
             Se connecter
           </button>
           <button
-            onClick={goToInscription}
+            onClick={() => navigate("/inscription")}
             style={{
               background: "#C2614F",
               color: "white",
@@ -264,7 +293,7 @@ export default function LandingPage() {
               Des nounous vérifiées, près de chez vous, en contact direct WhatsApp avec nos agences partenaires.
             </p>
 
-            {/* 3 blocs du HERO */}
+            {/* 3 blocs → STATIQUES, sans redirection */}
             <div
               style={{
                 display: "grid",
@@ -275,30 +304,33 @@ export default function LandingPage() {
               }}
             >
               {[
-                { bg: "#4A7C59", icon: <Home size={20} />, titre: "Famille", sub: "Je cherche" },
-                { bg: "#C2614F", icon: <Building2 size={20} />, titre: "Agence", sub: "Je gère" },
-                { bg: "#D4B896", icon: <UserCheck size={20} />, titre: "Nounou", sub: "Je m'inscris" },
+                { bg: "#4A7C59", icon: <Home size={20} />, titre: "Famille", sub: "Je cherche", profil: "menage" },
+                { bg: "#C2614F", icon: <Building2 size={20} />, titre: "Agence", sub: "Je gère", profil: "agence" },
+                { bg: "#D4B896", icon: <UserCheck size={20} />, titre: "Nounou", sub: "Je m'inscris", profil: "nounou" },
               ].map((b, i) => (
                 <div
                   key={i}
-                  onClick={() => goToInscriptionWithProfil(
-                    i === 0 ? "menage" : i === 1 ? "agence" : "nounou"
-                  )}
                   style={{
                     background: b.bg,
                     color: "white",
                     borderRadius: 18,
                     padding: "18px 12px",
                     textAlign: "center",
+                    cursor: "pointer",
+                    transition: "transform 0.25s ease, box-shadow 0.25s ease",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     gap: 6,
-                    cursor: "pointer",
-                    transition: "transform 0.3s ease",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.03)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-4px)";
+                    e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,0,0,0.10)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "";
+                    e.currentTarget.style.boxShadow = "";
+                  }}
                 >
                   {b.icon}
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{b.titre}</div>
@@ -332,9 +364,9 @@ export default function LandingPage() {
           }}
         >
           {[
-            { bg: "#4A7C59", icon: <Home size={32} />, titre: "Famille", desc: "Je cherche une nounou ou une aide pour mon domicile", btn: "Je cherche", profil: "menage" },
-            { bg: "#C2614F", icon: <Building2 size={32} />, titre: "Agence", desc: "Je gère un vivier de nounous et je place des professionnelles", btn: "Accéder →", profil: "agence" },
-            { bg: "#D4B896", icon: <UserCheck size={32} />, titre: "Nounou", desc: "Je m'inscris et les agences de mon quartier me contactent", btn: "Je m'inscris", profil: "nounou" },
+            { bg: "#4A7C59", icon: <Home size={32} />, titre: "Famille", desc: "Je cherche une nounou ou une aide pour mon domicile", btn: "Je cherche", btnBg: "#4A7C59", profil: "menage" },
+            { bg: "#C2614F", icon: <Building2 size={32} />, titre: "Agence", desc: "Je gère un vivier de nounous et je place des professionnelles", btn: "Accéder →", btnBg: "#C2614F", profil: "agence" },
+            { bg: "#D4B896", icon: <UserCheck size={32} />, titre: "Nounou", desc: "Je m'inscris et les agences de mon quartier me contactent", btn: "Je m'inscris", btnBg: "#D4B896", profil: "nounou" },
           ].map((c, i) => (
             <FadeUp key={i} delay={i * 80}>
               <div
@@ -380,7 +412,7 @@ export default function LandingPage() {
                 <p style={{ fontSize: 14, color: "#78716C", lineHeight: 1.5, marginBottom: 20 }}>{c.desc}</p>
                 <button
                   style={{
-                    background: c.bg,
+                    background: c.btnBg,
                     color: "white",
                     border: "none",
                     padding: "10px 28px",
@@ -435,7 +467,7 @@ export default function LandingPage() {
                     lineHeight: 1,
                   }}
                 >
-                  {s.target}
+                  <AnimatedNumber target={s.target} suffix={s.suffix} />
                 </div>
                 <div style={{ color: "white", fontWeight: 600, fontSize: "clamp(14px, 1vw, 16px)", marginTop: 8 }}>
                   {s.label}
@@ -474,96 +506,91 @@ export default function LandingPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 72 }}>
             {steps.map((step, i) => (
               <div key={i} style={{ background: step.bg, borderRadius: 24, padding: "clamp(32px, 4vw, 48px) clamp(20px, 3vw, 40px)" }}>
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 48,
-                  alignItems: "center",
-                }}>
-                  <div>
-                    <div style={{
-                      fontFamily: "'DM Mono', monospace",
-                      fontSize: 12,
-                      color: "#C2614F",
-                      fontWeight: 700,
-                      letterSpacing: "1px",
-                      textTransform: "uppercase",
-                      marginBottom: 12,
-                    }}>
-                      Étape {step.num}
-                    </div>
-                    <h3 style={{
-                      fontFamily: "'DM Serif Display', serif",
-                      fontSize: "clamp(22px, 2vw, 26px)",
-                      color: "#1C1917",
-                      marginBottom: 12,
-                    }}>
-                      {step.titre}
-                    </h3>
-                    <p style={{ color: "#78716C", fontSize: 15, lineHeight: 1.65, maxWidth: 380 }}>{step.desc}</p>
-                    <button
-                      onClick={goToAide}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        marginTop: 16,
-                        color: "#4A7C59",
-                        fontWeight: 700,
-                        fontSize: 14,
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      En savoir plus <ArrowRight size={14} />
-                    </button>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "center" }}>
-                    <div
-                      style={{
-                        background: step.card.green ? "#4A7C59" : "white",
-                        color: step.card.green ? "white" : "#1C1917",
-                        borderRadius: 22,
-                        padding: "clamp(24px, 2.5vw, 32px) clamp(20px, 2vw, 28px)",
-                        textAlign: "center",
-                        maxWidth: 240,
-                        width: "100%",
-                        border: !step.card.green ? "1px solid rgba(212,184,150,0.25)" : "none",
-                        boxShadow: "0 12px 40px rgba(28,25,23,0.08)",
-                      }}
-                    >
-                      <div style={{ color: step.card.green ? "white" : "#C2614F", marginBottom: 10 }}>
-                        {step.card.icon}
+                <SlideIn reverse={i % 2 === 1} delay={0}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: i % 2 === 0 ? "1fr 1fr" : "1fr 1fr",
+                      gap: 48,
+                      alignItems: "center",
+                      direction: i % 2 === 1 ? "rtl" : "ltr",
+                    }}
+                  >
+                    <div style={{ direction: "ltr" }}>
+                      <div
+                        style={{
+                          fontFamily: "'DM Mono', monospace",
+                          fontSize: 12,
+                          color: "#C2614F",
+                          fontWeight: 700,
+                          letterSpacing: "1px",
+                          textTransform: "uppercase",
+                          marginBottom: 12,
+                        }}
+                      >
+                        Étape {step.num}
                       </div>
-                      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{step.card.titre}</div>
-                      {step.card.stars && <div style={{ color: "#F59E0B", marginBottom: 4 }}>★★★★★</div>}
-                      <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>{step.card.sub}</div>
-                      {step.card.badge && (
-                        <span
-                          style={{
-                            display: "inline-block",
-                            background: step.card.green ? "white" : "#4A7C59",
-                            color: step.card.green ? "#4A7C59" : "white",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            padding: "5px 16px",
-                            borderRadius: 50,
-                          }}
-                        >
-                          {step.card.badge}
-                        </span>
-                      )}
+                      <h3
+                        style={{
+                          fontFamily: "'DM Serif Display', serif",
+                          fontSize: "clamp(22px, 2vw, 26px)",
+                          color: "#1C1917",
+                          marginBottom: 12,
+                        }}
+                      >
+                        {step.titre}
+                      </h3>
+                      <p style={{ color: "#78716C", fontSize: 15, lineHeight: 1.65, maxWidth: 380 }}>{step.desc}</p>
+                      <a href="/aide" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, color: "#4A7C59", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
+                        En savoir plus <ArrowRight size={14} />
+                      </a>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "center", direction: "ltr" }}>
+                      <div
+                        style={{
+                          background: step.card.green ? "#4A7C59" : "white",
+                          color: step.card.green ? "white" : "#1C1917",
+                          borderRadius: 22,
+                          padding: "clamp(24px, 2.5vw, 32px) clamp(20px, 2vw, 28px)",
+                          textAlign: "center",
+                          maxWidth: 240,
+                          width: "100%",
+                          border: !step.card.green ? "1px solid rgba(212,184,150,0.25)" : "none",
+                          boxShadow: "0 12px 40px rgba(28,25,23,0.08)",
+                        }}
+                      >
+                        <div style={{ color: step.card.green ? "white" : "#C2614F", marginBottom: 10 }}>
+                          {step.card.icon}
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{step.card.titre}</div>
+                        {step.card.stars && <div style={{ color: "#F59E0B", marginBottom: 4 }}>★★★★★</div>}
+                        <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>{step.card.sub}</div>
+                        {step.card.badge && (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              background: step.card.green ? "white" : "#4A7C59",
+                              color: step.card.green ? "#4A7C59" : "white",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              padding: "5px 16px",
+                              borderRadius: 50,
+                            }}
+                          >
+                            {step.card.badge}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </SlideIn>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ===== NOS NOUNOUS ===== */}
+      {/* ===== NOS NOUNOUS AVEC UI AVATARS ===== */}
       <section id="nounous" style={{ padding: "80px 24px", background: "#F5EDE6" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <FadeUp>
@@ -638,22 +665,84 @@ export default function LandingPage() {
             ))}
           </div>
           <div style={{ textAlign: "right", marginTop: 20 }}>
-            <button
-              onClick={goToAide}
-              style={{
-                color: "#4A7C59",
-                fontWeight: 700,
-                fontSize: 15,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
+            <a href="/inscription?profil=menage" style={{ color: "#4A7C59", fontWeight: 700, fontSize: 15, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
               Voir toutes les nounous <ArrowRight size={15} />
-            </button>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== TÉMOIGNAGES ===== */}
+      <section style={{ padding: "80px 24px" }}>
+        <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+          <FadeUp>
+            <div style={{ textAlign: "center", marginBottom: 40 }}>
+              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 3vw, 36px)", color: "#1C1917", marginBottom: 6 }}>
+                Avis des familles
+              </h2>
+              <p style={{ color: "#78716C", fontSize: 16 }}>Des parents comme vous</p>
+            </div>
+          </FadeUp>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: 16,
+            }}
+          >
+            {[
+              { texte: "Nounou trouvée en 24h. Simple, rapide et rassurant.", auteur: "Cécile, Cocody", premier: true },
+              { texte: "Les agences partenaires sont très réactives. J'ai trouvé une excellente aide à domicile en 2 jours.", auteur: "Jean, Plateau", premier: false },
+            ].map((t, i) => (
+              <FadeUp key={i} delay={i * 100}>
+                <div
+                  style={{
+                    background: t.premier ? "#FEF3C7" : "white",
+                    padding: "24px 26px",
+                    borderRadius: 18,
+                    borderLeft: `4px solid ${t.premier ? "#F59E0B" : "#4A7C59"}`,
+                  }}
+                >
+                  {t.premier && (
+                    <span
+                      style={{
+                        display: "inline-block",
+                        fontSize: 10,
+                        background: "#F59E0B",
+                        color: "white",
+                        padding: "2px 10px",
+                        borderRadius: 50,
+                        fontWeight: 700,
+                        marginBottom: 6,
+                      }}
+                    >
+                      ⭐ Coup de cœur
+                    </span>
+                  )}
+                  <div style={{ color: "#F59E0B", fontSize: 16, marginBottom: 6 }}>★★★★★</div>
+                  <p style={{ fontSize: 15, color: "#1C1917", lineHeight: 1.6, marginBottom: 8, fontStyle: "italic" }}>
+                    &ldquo;{t.texte}&rdquo;
+                  </p>
+                  <span style={{ fontSize: 13, color: "#78716C", fontWeight: 600 }}>— {t.auteur}</span>
+                </div>
+              </FadeUp>
+            ))}
+            <FadeUp delay={160}>
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  background: "#FAF7F2",
+                  borderLeft: "4px solid #D4B896",
+                  padding: "18px 26px",
+                  borderRadius: 18,
+                  textAlign: "center",
+                }}
+              >
+                <p style={{ fontSize: 15, color: "#78716C", fontStyle: "italic" }}>
+                  ✏️ Vous avez trouvé une nounou ? <a href="#" style={{ color: "#4A7C59", fontWeight: 700 }}>Donnez votre avis</a>
+                </p>
+              </div>
+            </FadeUp>
           </div>
         </div>
       </section>
@@ -735,7 +824,7 @@ export default function LandingPage() {
               </p>
               <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
                 <button
-                  onClick={goToInscription}
+                  onClick={() => navigate("/inscription")}
                   style={{
                     background: "#C2614F",
                     color: "white",
@@ -761,8 +850,10 @@ export default function LandingPage() {
                 >
                   <Search size={18} /> Commencer maintenant
                 </button>
-                <button
-                  onClick={handleWhatsAppContact}
+                <a
+                  href="https://wa.me/2250152242299"
+                  target="_blank"
+                  rel="noreferrer"
                   style={{
                     background: "rgba(255,255,255,0.1)",
                     color: "white",
@@ -770,18 +861,18 @@ export default function LandingPage() {
                     borderRadius: 50,
                     fontSize: "clamp(14px, 0.9vw, 16px)",
                     fontWeight: 600,
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
+                    textDecoration: "none",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 8,
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    transition: "all 0.2s",
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
                 >
                   <MessageCircle size={17} /> Contactez-nous
-                </button>
+                </a>
               </div>
             </div>
           </FadeUp>
@@ -816,7 +907,7 @@ export default function LandingPage() {
                 La plateforme de mise en relation entre familles, agences de placement et nounous professionnelles à Abidjan.
               </p>
               <div style={{ marginTop: 12, display: "flex", justifyContent: "center", gap: 16 }}>
-                {["Instagram", "Facebook", "WhatsApp"].map((s) => (
+                {["TikTok", "Facebook", "WhatsApp"].map((s) => (
                   <a key={s} href="#" style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", textDecoration: "none", transition: "color 0.2s" }}
                     onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
@@ -826,61 +917,16 @@ export default function LandingPage() {
             </div>
             <div>
               <h4 style={{ color: "white", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Liens</h4>
-              <button
-                onClick={goToAPropos}
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
-                  marginBottom: 6,
-                  transition: "color 0.2s",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  width: "100%",
-                  textAlign: "center",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
-              >
-                À propos
-              </button>
-              <button
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
-                  marginBottom: 6,
-                  transition: "color 0.2s",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  width: "100%",
-                  textAlign: "center",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
-              >
-                Conditions
-              </button>
-              <button
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
-                  marginBottom: 6,
-                  transition: "color 0.2s",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  width: "100%",
-                  textAlign: "center",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
-              >
-                Confidentialité
-              </button>
+              {[
+                { label: "À propos", href: "/a-propos" },
+                { label: "Conditions", href: "#" },
+                { label: "Confidentialité", href: "#" },
+              ].map((l) => (
+                <a key={l.label} href={l.href} style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", textDecoration: "none", marginBottom: 6, transition: "color 0.2s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
+                >{l.label}</a>
+              ))}
             </div>
             <div>
               <h4 style={{ color: "white", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Contact</h4>
@@ -910,10 +956,12 @@ export default function LandingPage() {
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 999,
+          opacity: floatVisible ? 1 : 0,
+          transition: "opacity 0.3s, transform 0.3s",
         }}
       >
         <button
-          onClick={goToInscription}
+          onClick={() => navigate("/inscription")}
           style={{
             background: "#4A7C59",
             color: "white",

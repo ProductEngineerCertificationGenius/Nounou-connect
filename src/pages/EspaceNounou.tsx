@@ -70,7 +70,6 @@ export default function EspaceNounou() {
     quartier: "",
     ethnie: "",
     experience: "",
-    tarif: "",
   });
 
   const hasAgence = Boolean(currentUser?.agence_id);
@@ -138,7 +137,6 @@ export default function EspaceNounou() {
         quartier: formData.quartier,
         ethnie: formData.ethnie,
         experience: formData.experience,
-        tarif: parseInt(formData.tarif) || 0,
         photo_url,
       };
 
@@ -175,7 +173,6 @@ export default function EspaceNounou() {
         quartier: profil.quartier || "",
         ethnie: profil.ethnie || "",
         experience: profil.experience || "",
-        tarif: profil.tarif?.toString() || "",
       });
       setPreviewUrl(profil.photo_url || null);
     }
@@ -249,7 +246,7 @@ export default function EspaceNounou() {
           <span>{profil?.agence?.quartier || profil?.quartier}</span>
         </div>
 
-        {/* Cartes d'informations (sans Langues) */}
+        {/* Cartes d'informations (sans Langues, sans Tarif) */}
         <div className="info-cards">
           <div className="info-card">
             <div className="info-card-icon"><Briefcase size={20} /></div>
@@ -286,13 +283,6 @@ export default function EspaceNounou() {
               <span className="info-card-value">{profil?.type_service || "Nounou"}</span>
             </div>
           </div>
-          <div className="info-card">
-            <div className="info-card-icon"><Heart size={20} /></div>
-            <div className="info-card-content">
-              <span className="info-card-label">Tarif</span>
-              <span className="info-card-value">{profil?.tarif ? `${profil.tarif.toLocaleString()} FCFA` : "—"}</span>
-            </div>
-          </div>
         </div>
 
         {/* Message contact agence */}
@@ -301,7 +291,7 @@ export default function EspaceNounou() {
           <div className="message-content">
             <p className="message-title">Besoin de modifier vos informations ?</p>
             <p className="message-text">
-              Pour modifier votre nom, tarif, expérience ou photo, contactez votre agence. 
+              Pour modifier votre nom, expérience ou photo, contactez votre agence. 
               Elle seule peut mettre à jour votre profil.
             </p>
           </div>
@@ -404,7 +394,7 @@ export default function EspaceNounou() {
           )}
         </div>
 
-        {/* Formulaire d'édition ou affichage (sans Langues) */}
+        {/* Formulaire d'édition ou affichage (sans Langues, sans Tarif) */}
         {isEditing ? (
           <div className="edit-form">
             <div className="form-row">
@@ -449,20 +439,9 @@ export default function EspaceNounou() {
                 />
               </div>
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Tarif (FCFA / mois)</label>
-                <input
-                  type="number"
-                  value={formData.tarif}
-                  onChange={(e) => setFormData({ ...formData, tarif: e.target.value })}
-                  placeholder="85000"
-                />
-              </div>
-            </div>
           </div>
         ) : (
-          /* Affichage des infos (sans Langues) */
+          /* Affichage des infos (sans Langues, sans Tarif) */
           <div className="info-cards">
             <div className="info-card">
               <div className="info-card-icon"><Phone size={20} /></div>
@@ -490,13 +469,6 @@ export default function EspaceNounou() {
               <div className="info-card-content">
                 <span className="info-card-label">Expérience</span>
                 <span className="info-card-value">{profil?.experience || "Non renseigné"}</span>
-              </div>
-            </div>
-            <div className="info-card">
-              <div className="info-card-icon"><Heart size={20} /></div>
-              <div className="info-card-content">
-                <span className="info-card-label">Tarif</span>
-                <span className="info-card-value">{profil?.tarif ? `${profil.tarif.toLocaleString()} FCFA` : "—"}</span>
               </div>
             </div>
           </div>

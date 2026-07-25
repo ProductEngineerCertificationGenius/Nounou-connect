@@ -44,6 +44,7 @@ export default function InscriptionPage() {
     email: "",
     description: "",
     ethnie: "",
+    experience: "",
   });
   const [phoneError, setPhoneError] = useState("");
   const [serverError, setServerError] = useState("");
@@ -129,7 +130,7 @@ export default function InscriptionPage() {
       }
     }
 
-    // Nounou : nom + prénom + ethnie requis
+    // Nounou : nom + prénom + ethnie + expérience professionnelle requis
     if (profil === "nounou") {
       if (!formData.nom || !formData.prenom) {
         setServerError("Veuillez remplir votre nom et prénom.");
@@ -143,6 +144,11 @@ export default function InscriptionPage() {
       }
       if (!formData.ethnie) {
         setServerError("Veuillez renseigner votre ethnie.");
+        setIsLoading(false);
+        return;
+      }
+      if (!formData.experience) {
+        setServerError("Veuillez renseigner votre expérience professionnelle.");
         setIsLoading(false);
         return;
       }
@@ -163,7 +169,12 @@ export default function InscriptionPage() {
         nom: fullName,
         telephone: formData.telephone,
         quartier: formData.quartier,
-        ...(profil === "nounou" && { ethnie: formData.ethnie, agence_id: null, disponible: true }),
+        ...(profil === "nounou" && {
+          ethnie: formData.ethnie,
+          experience: formData.experience,
+          agence_id: null,
+          disponible: true,
+        }),
         ...(profil === "agence" && { description: formData.description || "", email: formData.email || "" }),
         created_at: new Date().toISOString(),
       };
@@ -339,19 +350,32 @@ export default function InscriptionPage() {
               </select>
             </div>
 
-            {/* ETHNIE - UNIQUEMENT pour Nounou */}
+            {/* ETHNIE + EXPÉRIENCE PROFESSIONNELLE - UNIQUEMENT pour Nounou */}
             {isNounou && (
-              <div className="form-group">
-                <label>Ethnie <span className="required">*</span></label>
-                <input
-                  type="text"
-                  name="ethnie"
-                  placeholder="Akan, Baoulé, Malinké, etc."
-                  value={formData.ethnie}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+              <>
+                <div className="form-group">
+                  <label>Ethnie <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    name="ethnie"
+                    placeholder="Akan, Baoulé, Malinké, etc."
+                    value={formData.ethnie}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Expérience professionnelle <span className="required">*</span></label>
+                  <textarea
+                    name="experience"
+                    placeholder="Ex : 3 ans d'expérience en garde d'enfants, ancienne nounou chez la famille Koffi..."
+                    value={formData.experience}
+                    onChange={handleChange}
+                    rows={3}
+                    required
+                  />
+                </div>
+              </>
             )}
 
             {/* CHAMPS SPÉCIFIQUES AGENCE */}
