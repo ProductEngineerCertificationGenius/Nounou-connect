@@ -1,9 +1,10 @@
 // src/pages/InscriptionPage.tsx
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Home, Building2, UserCheck, Eye, EyeOff, Shield, Lock } from "lucide-react";
+import { Home, Building2, UserCheck, Eye, EyeOff, Shield, Lock, Upload, FileWarning, FileCheck2 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useInscription } from "../hooks/useAuth";
+import { useUploaderDocumentAgence, validerFichierDocument } from "../hooks/useAgence";
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
 import type { ProfileType } from "../store/useAuthStore";
@@ -73,8 +74,13 @@ export default function InscriptionPage() {
   });
   const [phoneError, setPhoneError] = useState("");
   const [serverError, setServerError] = useState("");
+  // Document justificatif agence : obligatoire, envoyé dans la foulée
+  // de la création du compte (cf. useUploaderDocumentAgence).
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentError, setDocumentError] = useState("");
 
   const inscription = useInscription();
+  const uploadDocument = useUploaderDocumentAgence();
 
   useEffect(() => {
     if (initialProfil) {
@@ -136,6 +142,17 @@ export default function InscriptionPage() {
       setServerError("Veuillez remplir votre prénom et nom.");
       return;
     }
+    if (profil === "agence") {
+      if (!documentFile) {
+        setServerError("Veuillez joindre un document justifiant l'existence de votre agence.");
+        return;
+      }
+      const errFichier = validerFichierDocument(documentFile);
+      if (errFichier) {
+        setServerError(errFichier);
+        return;
+      }
+    }
 
     try {
       const result = await inscription.mutateAsync({
@@ -151,6 +168,24 @@ export default function InscriptionPage() {
           : undefined,
       });
       if (result.row) {
+        // Le compte agence existe désormais en base (result.row.id) : on
+        // envoie le document justificatif avant de rediriger. Le compte
+        // est déjà créé à ce stade même si l'upload échoue ci-dessous
+        // (impossible de "annuler" une inscription déjà faite côté
+        // Supabase Auth) — on affiche alors l'erreur et l'agence pourra
+        // réessayer depuis l'écran de statut (EspaceAgence) qui gère
+        // aussi l'envoi du document si celui-ci est manquant.
+        if (profil === "agence" && documentFile) {
+          try {
+            await uploadDocument.mutateAsync({ agenceId: result.row.id, file: documentFile });
+          } catch (uploadErr) {
+            setServerError(
+              `Votre compte a été créé, mais l'envoi du document a échoué (${getErrorMessage(
+                uploadErr
+              )}). Vous pourrez le renvoyer depuis votre espace agence.`
+            );
+          }
+        }
         navigate(PROFILE_LANDING[profil]);
       }
     } catch (err) {
@@ -356,6 +391,39 @@ export default function InscriptionPage() {
                     rows={3}
                   />
                 </div>
+                <div className="form-group">
+                  <label>
+                    Document justifiant l'existence de l'agence <span className="required">*</span>
+                  </label>
+                  <label className="document-upload-zone">
+                    {documentFile ? <FileCheck2 size={20} /> : <Upload size={20} />}
+                    <span>{documentFile ? documentFile.name : "RCCM, registre de commerce, ou équivalent (PDF, JPG, PNG)"}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const err = validerFichierDocument(f);
+                        if (err) {
+                          setDocumentError(err);
+                          setDocumentFile(null);
+                          return;
+                        }
+                        setDocumentError("");
+                        setDocumentFile(f);
+                      }}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                  {documentError && (
+                    <span className="error-message"><FileWarning size={14} /> {documentError}</span>
+                  )}
+                  <p className="field-hint">
+                    💡 Ce document nous permet de vérifier que votre agence existe réellement.
+                    Il ne sera visible que par notre équipe, jamais publié sur votre profil.
+                  </p>
+                </div>
               </>
             )}
 
@@ -389,8 +457,8 @@ export default function InscriptionPage() {
               </p>
             </div>
 
-            <button type="submit" className="submit-button" disabled={inscription.isPending}>
-              <Shield size={18} /> {inscription.isPending ? "Envoi..." : "S'inscrire"}
+            <button type="submit" className="submit-button" disabled={inscription.isPending || uploadDocument.isPending}>
+              <Shield size={18} /> {inscription.isPending || uploadDocument.isPending ? "Envoi..." : "S'inscrire"}
             </button>
 
             <p className="login-link">
@@ -656,6 +724,24 @@ export default function InscriptionPage() {
         .form-group textarea {
           resize: vertical;
           min-height: 60px;
+        }
+
+        .document-upload-zone {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 16px;
+          border: 1.5px dashed #D4B896;
+          border-radius: 12px;
+          background: #FAF7F2;
+          color: #78716C;
+          font-size: 14px;
+          cursor: pointer;
+          transition: border-color 0.2s;
+        }
+
+        .document-upload-zone:hover {
+          border-color: #C2614F;
         }
 
         .form-group input:focus,

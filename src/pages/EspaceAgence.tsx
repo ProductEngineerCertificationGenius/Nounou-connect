@@ -20,12 +20,17 @@ import {
   MessageSquare,
   Sparkles,
   Calendar,
+  Clock,
+  XCircle,
+  FileWarning,
+  Upload,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useLogout } from "../hooks/useAuth";
 import { useAuthStore } from "../store/useAuthStore";
 import { useAgenceDemandes } from "../hooks/useAgence";
 import { useAgenceProfil } from "../hooks/useAgence";
+import { useUploaderDocumentAgence, validerFichierDocument } from "../hooks/useAgence";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import GestionNounous from "./GestionNounous";
@@ -149,6 +154,202 @@ function RelationItem({ item }: { item: RelationAffichee }) {
 // ================================================================
 // ===== PAGE PRINCIPALE ===========================================
 // ================================================================
+
+// ================================================================
+// Écran bloquant tant que `statut_verification` de l'agence n'est
+// pas "valide". L'agence ne doit voir NI les stats, NI le vivier,
+// NI les demandes tant qu'un admin n'a pas validé son document
+// justificatif (cf. 0014_agences_document_verification.sql).
+// - "en_attente" : simple message d'attente.
+// - "refuse" : motif affiché + possibilité de renvoyer un document
+//   (repasse automatiquement en "en_attente" après renvoi).
+// ================================================================
+function VerificationEnAttente({
+  agenceId,
+  statut,
+  documentEnvoye,
+  motifRefus,
+  onLogout,
+}: {
+  agenceId: string;
+  statut: "en_attente" | "refuse";
+  documentEnvoye: boolean;
+  motifRefus?: string;
+  onLogout: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [erreur, setErreur] = useState("");
+  const uploadDocument = useUploaderDocumentAgence();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const err = validerFichierDocument(f);
+    if (err) {
+      setErreur(err);
+      setFile(null);
+      return;
+    }
+    setErreur("");
+    setFile(f);
+  };
+
+  const handleEnvoyer = () => {
+    if (!file) return;
+    uploadDocument.mutate({ agenceId, file }, { onSuccess: () => setFile(null) });
+  };
+
+  const estRefuse = statut === "refuse";
+  // Trois cas distincts :
+  // 1. Jamais envoyé -> formulaire d'envoi (bloque l'inscription tant
+  //    que ce n'est pas fait, quel que soit le chemin emprunté pour
+  //    arriver ici : juste après inscription, ou reconnexion plus tard
+  //    si l'envoi initial n'a pas abouti).
+  // 2. Envoyé, en attente -> message d'attente, pas de formulaire.
+  // 3. Refusé -> motif + formulaire de renvoi.
+  const demandeUnEnvoi = !documentEnvoye || estRefuse;
+
+  return (
+    <div className="verification-attente">
+      <div className="verification-card">
+        <div className={`verification-icon ${estRefuse ? "refuse" : ""}`}>
+          {estRefuse ? <XCircle size={40} /> : <Clock size={40} />}
+        </div>
+        <h1>
+          {estRefuse
+            ? "Document refusé"
+            : documentEnvoye
+              ? "Vérification en cours"
+              : "Encore une étape : votre document justificatif"}
+        </h1>
+        {estRefuse && (
+          <>
+            <p>
+              Le document que vous avez envoyé n'a pas été validé par notre équipe.
+              {motifRefus && <> Motif : <strong>{motifRefus}</strong>.</>}
+            </p>
+            <p>Merci d'envoyer un nouveau document pour continuer.</p>
+          </>
+        )}
+        {!estRefuse && documentEnvoye && (
+          <p>
+            Votre document justificatif a bien été reçu. Notre équipe le vérifie et vous
+            aurez accès à votre tableau de bord dès sa validation. Cela ne prend
+            généralement pas longtemps.
+          </p>
+        )}
+        {!estRefuse && !documentEnvoye && (
+          <p>
+            Pour activer votre espace agence, envoyez un document prouvant l'existence
+            de votre agence (registre de commerce, RCCM, ou équivalent). Votre tableau
+            de bord sera accessible dès sa validation par notre équipe.
+          </p>
+        )}
+
+        {demandeUnEnvoi && (
+          <div className="verification-reupload">
+            <label className="verification-upload-zone">
+              <Upload size={20} />
+              <span>{file ? file.name : "Choisir un document (PDF, JPG, PNG — 5 Mo max)"}</span>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} style={{ display: "none" }} />
+            </label>
+            {erreur && <p className="verification-erreur"><FileWarning size={14} /> {erreur}</p>}
+            {uploadDocument.isError && (
+              <p className="verification-erreur">
+                <FileWarning size={14} /> {getErrorMessage(uploadDocument.error)}
+              </p>
+            )}
+            {uploadDocument.isSuccess && (
+              <p className="verification-succes">Document envoyé ✅ En attente de vérification.</p>
+            )}
+            <button
+              className="btn-add"
+              disabled={!file || uploadDocument.isPending}
+              onClick={handleEnvoyer}
+            >
+              {uploadDocument.isPending ? "Envoi..." : estRefuse ? "Renvoyer le document" : "Envoyer le document"}
+            </button>
+          </div>
+        )}
+
+        <button className="verification-logout" onClick={onLogout}>
+          <LogOut size={16} /> Se déconnecter
+        </button>
+      </div>
+
+      <style>{`
+        .verification-attente {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #F5F0EB;
+          padding: 24px;
+          font-family: "Inter", sans-serif;
+        }
+        .verification-card {
+          max-width: 460px;
+          width: 100%;
+          background: white;
+          border-radius: 24px;
+          padding: 40px 32px;
+          text-align: center;
+          box-shadow: 0 24px 80px rgba(28, 25, 23, 0.08);
+        }
+        .verification-icon {
+          width: 72px;
+          height: 72px;
+          border-radius: 50%;
+          background: #D4B89622;
+          color: #C2614F;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 20px;
+        }
+        .verification-icon.refuse { background: #E87A7A22; color: #E87A7A; }
+        .verification-card h1 { font-size: 20px; font-weight: 700; color: #1C1917; margin-bottom: 12px; }
+        .verification-card p { font-size: 14px; color: #78716C; line-height: 1.6; margin-bottom: 8px; }
+        .verification-reupload { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .verification-upload-zone {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 16px;
+          border: 1.5px dashed #D4B896;
+          border-radius: 12px;
+          color: #78716C;
+          font-size: 14px;
+          cursor: pointer;
+          background: #FAF7F2;
+        }
+        .verification-erreur {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: #E87A7A;
+          font-size: 13px;
+        }
+        .verification-succes {
+          color: #4A7C59;
+          font-size: 13px;
+          font-weight: 600;
+        }
+        .verification-logout {
+          margin-top: 24px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: none;
+          border: none;
+          color: #78716C;
+          font-size: 13px;
+          cursor: pointer;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 export default function EspaceAgence() {
   const onLogout = useLogout();
@@ -336,6 +537,30 @@ export default function EspaceAgence() {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  // Gate d'accès : tant que le document justificatif n'est pas validé,
+  // l'agence ne voit ni sidebar, ni stats, ni vivier — seulement cet
+  // écran (avec le formulaire d'envoi si rien n'a encore été envoyé).
+  // `statut_verification` peut être `undefined` si la migration 0014
+  // n'est pas encore appliquée côté base : dans ce cas on ne bloque
+  // pas, pour ne pas casser les comptes existants avant que le backend
+  // n'ait déployé la colonne.
+  const statutVerification = agenceProfil?.statut_verification as
+    | "en_attente"
+    | "valide"
+    | "refuse"
+    | undefined;
+  if (agenceProfil && statutVerification && statutVerification !== "valide") {
+    return (
+      <VerificationEnAttente
+        agenceId={agenceProfil.id}
+        statut={statutVerification}
+        documentEnvoye={Boolean(agenceProfil.document_url)}
+        motifRefus={agenceProfil.motif_refus as string | undefined}
+        onLogout={onLogout}
+      />
+    );
+  }
 
   return (
     <div className="agence-container">
