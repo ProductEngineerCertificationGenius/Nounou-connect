@@ -576,25 +576,6 @@ export default function EspaceNounou() {
           </div>
         )}
 
-        <section className="statut-section">
-          <div className="statut-card">
-            <div className="statut-info">
-              <span className="statut-icon">
-                {profil?.disponible ? <CheckCircle size={24} /> : <Clock size={24} />}
-              </span>
-              <div>
-                <span className="statut-label">Mon statut</span>
-                <span className={`statut-value ${profil?.disponible ? "disponible" : "indisponible"}`}>
-                  {profil?.disponible ? "✅ Disponible" : "❌ Indisponible"}
-                </span>
-              </div>
-            </div>
-            <button className="btn-toggle-statut" onClick={() => toggleDisponible.mutate()} disabled={toggleDisponible.isPending}>
-              {toggleDisponible.isPending ? "..." : profil?.disponible ? "Marquer indisponible" : "Marquer disponible"}
-            </button>
-          </div>
-        </section>
-
         <div className="agences-scroll-section">
           <div className="agences-scroll-header">
             <div className="header-left">
