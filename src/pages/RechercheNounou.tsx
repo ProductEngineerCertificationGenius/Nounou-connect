@@ -231,7 +231,7 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
     <div className="step-content">
       <div className="step-icon"><Home size={32} strokeWidth={1.5} /></div>
       <h2 className="step-title">Logement</h2>
-      <p className="step-subtitle">Où la garde se déroulera-t-elle ?</p>
+      <p className="step-subtitle">Où sera-t-elle logée ?</p>
       <div className="choice-grid-large">
         {["Chez vous", "Chez la nounou"].map((l) => (
           <button

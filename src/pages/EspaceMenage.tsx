@@ -33,7 +33,7 @@ interface NounouAffichee {
   id: string;
   nom: string;
   quartier: string;
-  tarif: number;
+  tarif?: number | null;
   experience: string;
   langues: string[];
   disponible: boolean;
@@ -60,6 +60,11 @@ interface Avis {
 // chaque demande, pas à la nounou elle-même) — retiré. Le champ
 // `avis` intégré à chaque nounou mockée est remplacé par une vraie
 // requête sur la table `avis`, chargée à l'ouverture du détail.
+//
+// Le champ `tarif` a été retiré du formulaire nounou (EspaceNounou) :
+// il peut donc être null/undefined ici. Affichage sécurisé partout
+// (mobile, desktop, détail) pour éviter un crash sur
+// `.toLocaleString()` quand la valeur est absente.
 // ================================================================
 
 export default function EspaceMenage() {
@@ -186,7 +191,7 @@ export default function EspaceMenage() {
       <div className="nounou-card-info">
         <div className="nounou-name">{nounou.nom}</div>
         <div className="nounou-quartier"><MapPin size={10} /> {nounou.quartier}</div>
-        <div className="nounou-prix-mobile">{nounou.tarif.toLocaleString()} FCFA</div>
+        <div className="nounou-prix-mobile">{nounou.tarif != null ? `${nounou.tarif.toLocaleString()} FCFA` : "—"}</div>
         {nounou.disponible && <span className="badge-disponible-mobile">✅ Disponible</span>}
       </div>
     </div>
@@ -211,7 +216,7 @@ export default function EspaceMenage() {
           {(nounou.langues ?? []).map((l) => <span key={l} className="tag">{l}</span>)}
         </div>
         <div className="nounou-card-footer">
-          <div className="nounou-prix-desktop"><span>{nounou.tarif.toLocaleString()} FCFA</span></div>
+          <div className="nounou-prix-desktop"><span>{nounou.tarif != null ? `${nounou.tarif.toLocaleString()} FCFA` : "—"}</span></div>
           {nounou.agence?.nom && <div className="nounou-agence"><Shield size={14} /><span>{nounou.agence.nom}</span></div>}
         </div>
       </div>
@@ -270,7 +275,16 @@ export default function EspaceMenage() {
               </div>
             </div>
             <div className="detail-actions">
-              <div className="detail-prix"><span>{selectedNounou.tarif.toLocaleString()} FCFA</span><small>/ jour</small></div>
+              <div className="detail-prix">
+                {selectedNounou.tarif != null ? (
+                  <>
+                    <span>{selectedNounou.tarif.toLocaleString()} FCFA</span>
+                    <small>/ jour</small>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 15, color: "#78716C", fontWeight: 500 }}>Tarif non renseigné</span>
+                )}
+              </div>
               <button className="contact-btn" onClick={() => handleContactWhatsApp(selectedNounou.telephone)}><Phone size={20} /> Contacter</button>
             </div>
           </div>
@@ -311,7 +325,7 @@ export default function EspaceMenage() {
         ) : showDemandes ? (
           <DemandesPage onBack={handleDemandesClose} />
         ) : showProfil ? (
-          <ProfilPage onBack={handleProfilClose} onLogout={onLogout} />
+          <ProfilPage onBack={handleProfilClose} />
         ) : (
           <>
             {renderMobileHeader()}
