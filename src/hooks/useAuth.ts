@@ -240,6 +240,11 @@ export function useInscription() {
 }
 
 // ===== CONNEXION PAR PIN (remplace l'OTP à chaque connexion) =====
+// Depuis le retrait du mode "J'ai une agence" sur la page Inscription
+// (cf. commentaire dans InscriptionPage.tsx), c'est ICI que se joue
+// l'activation d'une nounou déjà créée par une agence : si le login
+// classique échoue, on tente une 1ère activation (signUp + rattachement
+// via claim_nounou_profile) avant de conclure à un vrai échec.
 export function useConnexion() {
   const { setUser, setProfileType } = useAuthStore();
 
@@ -260,7 +265,33 @@ export function useConnexion() {
         phone: normalizedPhone,
         password: pinToPassword(pin),
       });
-      if (error) throw new Error("Téléphone ou PIN incorrect.");
+
+      if (error) {
+        // Uniquement pour une nounou : le compte Auth peut ne pas encore
+        // exister (fiche créée par une agence, jamais activée). On tente
+        // de le créer ; si Supabase répond "déjà inscrit", c'est que le
+        // compte existe réellement -> le PIN saisi était juste faux.
+        if (profileType === "nounou") {
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            phone: normalizedPhone,
+            password: pinToPassword(pin),
+          });
+          if (signUpError || !signUpData.user) {
+            throw new Error("Téléphone ou PIN incorrect.");
+          }
+          if (signUpData.session) {
+            await supabase.auth.setSession(signUpData.session);
+          }
+          const row = await fetchOrClaimProfile("nounou", signUpData.user.id);
+          if (!row) {
+            throw new Error(
+              "Aucune fiche nounou ne correspond à ce numéro. Vérifiez que votre agence a bien renseigné exactement ce numéro, ou inscrivez-vous si vous n'avez pas d'agence."
+            );
+          }
+          return { row, profileType };
+        }
+        throw new Error("Téléphone ou PIN incorrect.");
+      }
 
       const row = await fetchOrClaimProfile(profileType, authData.user!.id);
       if (!row) {
