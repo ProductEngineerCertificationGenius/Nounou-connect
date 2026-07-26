@@ -7,7 +7,6 @@ import {
   Inbox,
   MessageCircle,
   User,
-  Settings,
   LogOut,
   Bell,
   MapPin,
@@ -32,8 +31,9 @@ import { useQuery } from "@tanstack/react-query";
 import GestionNounous from "./GestionNounous";
 import DemandesAgence from "./DemandesAgence";
 import ProfilAgence from "./ProfilAgence";
+import { getErrorMessage } from "../lib/errorHandler";
 
-type Tab = "accueil" | "nounous" | "demandes" | "profil" | "parametres";
+type Tab = "accueil" | "nounous" | "demandes" | "profil";
 
 // ================================================================
 // Réécriture complète du tableau de bord : le fichier d'origine
@@ -214,7 +214,6 @@ export default function EspaceAgence() {
           { id: "nounous", icon: <Users size={20} />, label: "Nounous" },
           { id: "demandes", icon: <Inbox size={20} />, label: "Demandes" },
           { id: "profil", icon: <User size={20} />, label: "Profil" },
-          { id: "parametres", icon: <Settings size={20} />, label: "Paramètres" },
         ].map((item) => (
           <button key={item.id} className={activeTab === item.id ? "active" : ""} onClick={() => {
             setActiveTab(item.id as Tab);
@@ -312,9 +311,7 @@ export default function EspaceAgence() {
             Impossible de charger votre profil agence
           </h2>
           <p style={{ color: "#78716C", fontSize: 14, marginTop: 8, maxWidth: 480, marginInline: "auto" }}>
-            {agenceProfilErrorDetail instanceof Error
-              ? agenceProfilErrorDetail.message
-              : "Une erreur inattendue est survenue."}
+            {getErrorMessage(agenceProfilErrorDetail)}
             {" "}Déconnectez-vous puis reconnectez-vous ; si le problème persiste, la fiche agence n'a
             peut-être pas été créée à l'inscription.
           </p>
@@ -329,12 +326,6 @@ export default function EspaceAgence() {
       case "nounous": return <GestionNounous agenceId={agenceId} onBack={() => setActiveTab("accueil")} />;
       case "demandes": return <DemandesAgence agenceId={agenceId} onBack={handleBackFromDemandes} demandeId={demandeId} />;
       case "profil": return <ProfilAgence onBack={() => setActiveTab("accueil")} onLogout={onLogout} />;
-      case "parametres": return (
-        <div className="tab-content">
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1C1917" }}><Settings size={20} style={{ display: "inline", marginRight: 8 }} /> Paramètres</h2>
-      <p style={{ color: "#78716C", fontSize: 14, marginTop: 4 }}>Gérez les paramètres de votre compte</p>
-        </div>
-      );
       default: return null;
     }
   };

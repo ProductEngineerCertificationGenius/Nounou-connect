@@ -9,13 +9,13 @@ import {
   MapPin,
   Star,
   Briefcase,
-  DollarSign,
   ChevronLeft,
   Camera,
   Save,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { getErrorMessage } from "../lib/errorHandler";
 import { normalizePhoneCI } from "../lib/phone";
 
 // ================================================================
@@ -98,7 +98,6 @@ function NounouCard({
           <span className="note">{nounou.note_moyenne ?? "—"}</span>
         </div>
         <div className="nounou-price">
-          <DollarSign size={14} />
           <span>{nounou.tarif.toLocaleString()} FCFA</span>
           <small>/ jour</small>
         </div>
@@ -223,7 +222,7 @@ function FormNounou({ agenceId, nounou, onClose }: FormNounouProps) {
       queryClient.invalidateQueries({ queryKey: ["nounous", "agence", agenceId] });
       onClose();
     },
-    onError: (err) => setServerError(err instanceof Error ? err.message : "Erreur lors de l'enregistrement."),
+    onError: (err) => setServerError(getErrorMessage(err)),
   });
 
   const handleSubmit = (e: React.FormEvent) => {

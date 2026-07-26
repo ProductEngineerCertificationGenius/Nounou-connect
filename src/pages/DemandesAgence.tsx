@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { getErrorMessage } from "../lib/errorHandler";
 
 // ================================================================
 // Réécriture complète, branchée sur la table réelle `demandes`.
@@ -260,7 +261,7 @@ export default function DemandesAgence({
       queryClient.invalidateQueries({ queryKey: ["demandes", "agence", agenceId] });
       queryClient.invalidateQueries({ queryKey: ["nounous", "agence", agenceId, "disponibles"] });
     },
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur lors de l'assignation."),
+    onError: (err) => alert(getErrorMessage(err)),
   });
 
   const handleContacter = (telephone?: string) => {

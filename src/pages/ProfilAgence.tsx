@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useAgenceProfil } from "../hooks/useAgence";
+import { getErrorMessage } from "../lib/errorHandler";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 // ================================================================
@@ -103,7 +104,7 @@ export default function ProfilAgence({
       setIsEditing(false);
       setPhotoFile(null);
     },
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur lors de l'enregistrement."),
+    onError: (err) => alert(getErrorMessage(err)),
   });
 
   const handleCancel = () => {

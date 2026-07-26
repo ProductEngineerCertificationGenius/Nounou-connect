@@ -5,6 +5,7 @@ import { Home, Building2, UserCheck, Eye, EyeOff, Shield, Lock } from "lucide-re
 import { Logo } from "../components/Logo";
 import { useInscription } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
+import { getErrorMessage } from "../lib/errorHandler";
 import type { ProfileType } from "../store/useAuthStore";
 
 const PROFILE_LANDING: Record<ProfileType, string> = {
@@ -134,7 +135,7 @@ export default function InscriptionPage() {
         navigate(PROFILE_LANDING[profil]);
       }
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : "Erreur lors de l'inscription.");
+      setServerError(getErrorMessage(err));
     }
   };
 
@@ -325,7 +326,7 @@ export default function InscriptionPage() {
                 </button>
               </div>
               <p className="pin-hint">
-                💡 Ce PIN vous servira à vous reconnecter directement, sans recevoir de SMS à chaque fois.
+                💡 Ce PIN vous servira à vous reconnecter directement .
               </p>
             </div>
 

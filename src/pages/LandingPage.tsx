@@ -151,7 +151,7 @@ export default function LandingPage() {
   const onConnexion = () => navigate("/connexion");
 
   const steps = [
-    { num: "01", titre: "Je découvre Nounou Connect", desc: "Des profils vérifiés, des agences partenaires.", card: { icon: <Sparkles size={28} />, titre: "Nounou Connect", sub: "Simple & rapide", badge: "✅ Gratuit" }, bg: "#FAF7F2" },
+    { num: "01", titre: "Je découvre Nounou Connect", desc: "Des profils vérifiés, des agences partenaires.", card: { icon: <Sparkles size={28} />, titre: "Nounou Connect", sub: "Simple & rapide" }, bg: "#FAF7F2" },
     { num: "02", titre: "Je trouve en 5 minutes", desc: "Je choisis mon quartier. Marie est disponible.", card: { icon: <User size={28} />, titre: "Marie K.", sub: "📍 Koumassi", badge: "✅ Disponible", stars: true }, bg: "#F5EDE6" },
     { num: "03", titre: "Son profil est vérifié", desc: "L'agence partenaire a vérifié ses références.", card: { icon: <ShieldCheck size={28} />, titre: "Confiance garantie", sub: "✅ Vérifiée par l'agence", badge: "🔒 Vérifiée" }, bg: "#FAF7F2" },
     { num: "04", titre: "Contact WhatsApp direct", desc: "Un tap et je suis en contact avec l'agence.", card: { icon: <MessageCircle size={28} />, titre: "WhatsApp", sub: "Contact direct", badge: "✅ 1 tap", green: true }, bg: "#F5EDE6" },
@@ -191,7 +191,7 @@ export default function LandingPage() {
           <span style={{ fontSize: 17, fontWeight: 700, color: "#1C1917", letterSpacing: "-0.3px" }}>Nounou Connect</span>
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a href="/aide" style={{ fontSize: 14, color: "#78716C", textDecoration: "none", fontWeight: 500 }}>Aide</a>
+          <a href="https://wa.me/22597263298" style={{ fontSize: 14, color: "#78716C", textDecoration: "none", fontWeight: 500 }}>Aide</a>
           <button
             onClick={onConnexion}
             style={{
@@ -542,7 +542,7 @@ export default function LandingPage() {
                         {step.titre}
                       </h3>
                       <p style={{ color: "#78716C", fontSize: 15, lineHeight: 1.65, maxWidth: 380 }}>{step.desc}</p>
-                      <a href="#" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, color: "#4A7C59", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
+                      <a href="https://wa.me/22597263298" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, color: "#4A7C59", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
                         En savoir plus <ArrowRight size={14} />
                       </a>
                     </div>
@@ -566,19 +566,21 @@ export default function LandingPage() {
                         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{step.card.titre}</div>
                         {step.card.stars && <div style={{ color: "#F59E0B", marginBottom: 4 }}>★★★★★</div>}
                         <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>{step.card.sub}</div>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            background: step.card.green ? "white" : "#4A7C59",
-                            color: step.card.green ? "#4A7C59" : "white",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            padding: "5px 16px",
-                            borderRadius: 50,
-                          }}
-                        >
-                          {step.card.badge}
-                        </span>
+                        {step.card.badge && (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              background: step.card.green ? "white" : "#4A7C59",
+                              color: step.card.green ? "#4A7C59" : "white",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              padding: "5px 16px",
+                              borderRadius: 50,
+                            }}
+                          >
+                            {step.card.badge}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -850,7 +852,7 @@ export default function LandingPage() {
                   <Search size={18} /> Commencer maintenant
                 </button>
                 <a
-                  href="#"
+                  href="https://wa.me/22597263298"
                   style={{
                     background: "rgba(255,255,255,0.1)",
                     color: "white",

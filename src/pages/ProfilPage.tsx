@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { User, MapPin, Phone, Edit2, Save, X, ChevronRight, LogOut, Shield } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useMenageProfil } from "../hooks/useMenage";
+import { getErrorMessage } from "../lib/errorHandler";
 import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
@@ -52,7 +53,7 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
       queryClient.invalidateQueries({ queryKey: ["menage", "profil", currentUser?.user_id] });
       setIsEditing(false);
     },
-    onError: (err) => alert(err instanceof Error ? err.message : "Erreur lors de l'enregistrement."),
+    onError: (err) => alert(getErrorMessage(err)),
   });
 
   const handleCancel = () => {
