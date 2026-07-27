@@ -2,17 +2,13 @@
 import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
-  Sparkles,
   User,
   ShieldCheck,
   MessageCircle,
   Smile,
   Search,
   Building2,
-  Handshake,
   Phone,
-  MapPin,
-  CheckCircle,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 

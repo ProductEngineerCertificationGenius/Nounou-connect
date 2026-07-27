@@ -10,6 +10,9 @@ import EspaceMenage from "./pages/EspaceMenage";
 import EspaceAgence from "./pages/EspaceAgence";
 import EspaceNounou from "./pages/EspaceNounou";
 import { useAuthStore, type ProfileType } from "./store/useAuthStore";
+import AProposPage from "./pages/AProposPage";
+import ConditionsPage from "./pages/ConditionsPage";
+import ConfidentialitePage from "./pages/ConfidentialitePage";
 
 function RequireProfile({
   profile,
@@ -36,7 +39,7 @@ export default function App() {
       <Route path="/aide" element={<AidePage />} />
       <Route path="/a-propos" element={<AProposPage />} />
 
-      {/* Pages protégées - Menage */}
+
       <Route
         path="/espace-menage"
         element={

@@ -19,6 +19,7 @@ export default defineConfig({
         'offline.html',
       ],
       manifest: {
+        id: '/',
         name: 'Nounou Connect - Trouvez votre nounou de confiance',
         short_name: 'Nounou Connect',
         description: "Plateforme de mise en relation entre familles, agences et nounous en Côte d'Ivoire",
@@ -31,6 +32,16 @@ export default defineConfig({
         categories: ['lifestyle', 'family', 'childcare'],
         lang: 'fr',
         dir: 'ltr',
+        // Un seul icône SVG "any" ne suffit pas partout : la plupart des
+        // navigateurs Android/Chrome exigent au moins un PNG 192 et 512
+        // pour proposer l'installation ("Ajouter à l'écran d'accueil").
+        // L'icône "maskable" évite que le logo soit rogné par les formes
+        // d'icônes Android (cercle, squircle...).
+        // NB : on pointe vers pwa-192.png / pwa-512.png / pwa-maskable-512.png
+        // (fichiers réellement présents dans /public), et non vers
+        // icons/icon-*.png comme dans la version de Noah — ce dossier n'est
+        // jamais généré (generate-icons.js ne produit que les icônes de
+        // raccourcis ci-dessous), ce qui aurait cassé le manifest (404).
         icons: [
           {
             src: 'favicon.svg',

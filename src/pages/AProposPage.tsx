@@ -1,6 +1,6 @@
 // src/pages/AProposPage.tsx
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Heart, Shield, Users, Building2, Handshake } from "lucide-react";
+import { ChevronLeft, Heart, Shield, Handshake } from "lucide-react";
 import { Logo } from "../components/Logo";
 
 export default function AProposPage() {

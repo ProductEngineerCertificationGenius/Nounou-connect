@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, User, MessageCircle, Building2 } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { useConnexion, useDemanderResetPin } from "../hooks/useAuth";
+import { useConnexion } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
 import { useAuthStore, type ProfileType } from "../store/useAuthStore";
@@ -16,13 +16,17 @@ const PROFILE_LANDING: Record<ProfileType, string> = {
 
 export default function ConnexionPage() {
   const navigate = useNavigate();
-  const { setNounouMode: setNounouModeStore, setNounouIdentifiant, setProfileType, setUser } = useAuthStore();
-
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
   const [telephone, setTelephone] = useState("");
   const [identifiant, setIdentifiant] = useState("");
   const [selectedProfil, setSelectedProfil] = useState<ProfileType>("menage");
+  // Sous-choix propre au profil nounou : purement une question de
+  // messagerie/contexte affiché, la connexion elle-même (téléphone +
+  // PIN, via useConnexion) est strictement identique dans les 2 cas —
+  // "avec-agence" peut en plus déclencher l'activation automatique du
+  // compte au tout premier essai (cf. useConnexion dans useAuth.ts).
+  const [nounouLoginMode, setNounouLoginMode] = useState<"avec-agence" | "sans-agence" | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [nounouMode, setNounouMode] = useState<"avec-agence" | "sans-agence" | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,8 +39,6 @@ export default function ConnexionPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const connexion = useConnexion();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const demanderReset = useDemanderResetPin();
 
   // ===== GESTIONNAIRES DE SAISIE PIN =====
   const handlePinChange = (index: number, value: string) => {
@@ -55,7 +57,16 @@ export default function ConnexionPage() {
     }
   };
 
-  // ===== SOUMISSION - VERSION SIMPLIFIÉE SANS VÉRIFICATION DB =====
+  const handlePinChange = makeDigitHandler(pin, setPin, "pin", PIN_LENGTH);
+  const handlePinKeyDown = makeKeyDownHandler(pin, "pin");
+
+  const handleSelectProfil = (p: ProfileType) => {
+    setSelectedProfil(p);
+    setNounouLoginMode(null);
+    setErrorMessage("");
+  };
+
+  // ===== ÉTAPE 1 : CONNEXION PAR TÉLÉPHONE + PIN (sans SMS) =====
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
@@ -181,6 +192,7 @@ export default function ConnexionPage() {
   };
 
   const goToInscription = () => navigate("/inscription");
+  const goToResetPassword = () => navigate("/reset-password");
 
   // ===== RENDU SÉLECTEUR NOUNOU =====
   const renderNounouChoice = () => (
@@ -244,123 +256,75 @@ export default function ConnexionPage() {
               <p style={{ color: "#E87A7A", fontSize: 14, marginBottom: 16 }}>{errorMessage}</p>
             )}
 
-            {isNounou && nounouMode === null && renderNounouChoice()}
-
-            {isNounou && nounouMode !== null && (
-              <>
-                <button
-                  type="button"
-                  className="back-to-choice"
-                  onClick={() => setNounouMode(null)}
-                >
-                  ← Retour
-                </button>
-                <h2 className="connexion-title">
-                  {nounouMode === "avec-agence" ? "🔑 Connexion nounou" : "📱 Connexion nounou"}
-                </h2>
-                <p className="connexion-subtitle">
-                  {nounouMode === "avec-agence"
-                    ? "Entrez votre identifiant fourni par votre agence"
-                    : "Entrez votre numéro pour accéder à votre espace"}
-                </p>
-
-                <form onSubmit={handleLoginSubmit} className="connexion-form">
-                  {nounouMode === "sans-agence" && (
-                    <div className="form-group">
-                      <label>Numéro de téléphone</label>
-                      <input
-                        type="tel"
-                        placeholder="07 XX XX XX XX"
-                        value={telephone}
-                        onChange={(e) => setTelephone(e.target.value)}
-                        required
-                      />
-                      <p className="field-hint">
-                        💡 Utilisez le numéro avec lequel vous vous êtes inscrite.
-                      </p>
-                    </div>
-                  )}
-
-                  {nounouMode === "avec-agence" && (
-                    <div className="form-group">
-                      <label className="pin-label">
-                        <User size={16} className="pin-icon" />
-                        Identifiant nounou
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Entrez votre identifiant"
-                        value={identifiant}
-                        onChange={(e) => setIdentifiant(e.target.value)}
-                        required
-                      />
-                      <p className="field-hint">
-                        💡 L'identifiant vous a été fourni par votre agence.
-                      </p>
-                    </div>
-                  )}
-
-                  <button type="submit" className="submit-button" disabled={isLoading}>
-                    {isLoading ? "Connexion..." : "Se connecter"}
-                  </button>
-                </form>
-
-                <div className="nounou-help">
-                  <p>
-                    Vous rencontrez des difficultés ?{" "}
-                    <button
-                      type="button"
-                      onClick={handleWhatsAppContact}
-                      className="nounou-help-link"
-                    >
-                      <MessageCircle size={14} />
-                      Contacter le support
-                    </button>
-                  </p>
-                </div>
-              </>
-            )}
-
-            {isMenageOrAgence && (
-              <>
+            {/* ===== CONNEXION NORMALE : téléphone + PIN, 3 profils ===== */}
+            <>
                 <h2 className="connexion-title">Se connecter</h2>
                 <p className="connexion-subtitle">Entrez votre téléphone et votre PIN</p>
 
                 <div className="profil-selector">
                   <button
                     type="button"
-                    className={`profil-option ${isMenage ? "active" : ""}`}
-                    onClick={() => {
-                      setSelectedProfil("menage");
-                      setErrorMessage("");
-                    }}
+                    className={`profil-option ${selectedProfil === "menage" ? "active" : ""}`}
+                    onClick={() => handleSelectProfil("menage")}
                   >
                     🏠 Famille
                   </button>
                   <button
                     type="button"
-                    className={`profil-option ${isAgence ? "active" : ""}`}
-                    onClick={() => {
-                      setSelectedProfil("agence");
-                      setErrorMessage("");
-                    }}
+                    className={`profil-option ${selectedProfil === "agence" ? "active" : ""}`}
+                    onClick={() => handleSelectProfil("agence")}
                   >
                     🏢 Agence
                   </button>
                   <button
                     type="button"
-                    className={`profil-option ${isNounou ? "active" : ""}`}
-                    onClick={() => {
-                      setSelectedProfil("nounou");
-                      setNounouMode(null);
-                      setErrorMessage("");
-                    }}
+                    className={`profil-option ${selectedProfil === "nounou" ? "active" : ""}`}
+                    onClick={() => handleSelectProfil("nounou")}
                   >
                     👩‍🍼 Nounou
                   </button>
                 </div>
 
-                <form onSubmit={handleLoginSubmit} className="connexion-form">
+                {selectedProfil === "nounou" && !nounouLoginMode && (
+                  <div className="nounou-mode-selector">
+                    <button
+                      type="button"
+                      className="nounou-mode-option"
+                      onClick={() => setNounouLoginMode("avec-agence")}
+                    >
+                      J'ai une agence
+                      <small>Elle a déjà renseigné mon numéro</small>
+                    </button>
+                    <button
+                      type="button"
+                      className="nounou-mode-option"
+                      onClick={() => setNounouLoginMode("sans-agence")}
+                    >
+                      Je n'ai pas encore d'agence
+                      <small>Voir si des agences m'ont répondu</small>
+                    </button>
+                  </div>
+                )}
+
+                {(selectedProfil !== "nounou" || nounouLoginMode) && (
+                  <>
+                    {selectedProfil === "nounou" && (
+                      <p className="field-hint" style={{ marginBottom: 12 }}>
+                        {nounouLoginMode === "avec-agence"
+                          ? "💡 Entrez le numéro que votre agence a renseigné et créez votre PIN : votre compte s'active automatiquement à cette première connexion."
+                          : "💡 Reconnectez-vous pour voir si des agences vous ont répondu, et continuer à consulter celles disponibles dans votre zone."}
+                        {" "}
+                        <button
+                          type="button"
+                          onClick={() => setNounouLoginMode(null)}
+                          style={{ background: "none", border: "none", color: "#C2614F", fontWeight: 600, cursor: "pointer", padding: 0, fontSize: 12 }}
+                        >
+                          Changer
+                        </button>
+                      </p>
+                    )}
+
+                    <form onSubmit={handleLoginSubmit} className="connexion-form">
                   <div className="form-group">
                     <label>Numéro de téléphone</label>
                     <input
@@ -399,7 +363,7 @@ export default function ConnexionPage() {
                   </div>
 
                   <div className="forgot-password">
-                    <a href="#" onClick={(e) => { e.preventDefault(); navigate("/reset-password"); }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); goToResetPassword(); }}>
                       PIN oublié ?
                     </a>
                   </div>
@@ -408,6 +372,8 @@ export default function ConnexionPage() {
                     {isLoading ? "Connexion..." : "Se connecter"}
                   </button>
                 </form>
+                  </>
+                )}
 
                 <p className="signup-link">
                   Vous n'avez pas encore de compte ?{" "}
@@ -415,8 +381,7 @@ export default function ConnexionPage() {
                     S'inscrire
                   </a>
                 </p>
-              </>
-            )}
+            </>
           </div>
         </div>
       </div>
@@ -554,86 +519,36 @@ export default function ConnexionPage() {
           color: #C2614F;
         }
 
-        .nounou-choice {
-          text-align: center;
-          padding: 8px 0;
-        }
-
-        .nounou-choice-title {
-          font-size: 22px;
-          font-weight: 700;
-          color: #1C1917;
-          margin: 0 0 4px;
-        }
-
-        .nounou-choice-subtitle {
-          font-size: 14px;
-          color: #78716C;
-          margin: 0 0 20px;
-        }
-
-        .nounou-choice-buttons {
+        .nounou-mode-selector {
           display: flex;
-          flex-direction: column;
           gap: 12px;
+          margin-bottom: 20px;
         }
 
-        .nounou-choice-btn {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 4px;
-          padding: 20px;
+        .nounou-mode-option {
+          flex: 1;
+          text-align: left;
+          padding: 14px 16px;
           border: 2px solid #E8DDD0;
-          border-radius: 16px;
+          border-radius: 14px;
           background: transparent;
           cursor: pointer;
-          transition: all 0.3s ease;
-          width: 100%;
-        }
-
-        .nounou-choice-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(28,25,23,0.08);
-        }
-
-        .nounou-choice-btn.with-agence:hover {
-          border-color: #4A7C59;
-          background: #E8F5E8;
-        }
-
-        .nounou-choice-btn.without-agence:hover {
-          border-color: #C2614F;
-          background: #F8EDEE;
-        }
-
-        .nounou-choice-btn svg {
-          color: #705334;
-        }
-
-        .nounou-choice-btn span {
-          font-size: 16px;
+          transition: all 0.2s;
+          font-size: 14px;
           font-weight: 700;
           color: #1C1917;
         }
 
-        .nounou-choice-btn small {
+        .nounou-mode-option small {
+          display: block;
+          font-weight: 400;
           font-size: 12px;
           color: #78716C;
+          margin-top: 4px;
         }
 
-        .nounou-choice-back {
-          background: transparent;
-          border: none;
-          color: #78716C;
-          cursor: pointer;
-          font-size: 14px;
-          margin-top: 16px;
-          transition: color 0.2s;
-        }
-
-        .nounou-choice-back:hover {
-          color: #C2614F;
+        .nounou-mode-option:hover {
+          border-color: #D4B896;
         }
 
         .connexion-form {
@@ -646,6 +561,16 @@ export default function ConnexionPage() {
           display: flex;
           flex-direction: column;
           gap: 4px;
+        }
+
+        .field-hint {
+          font-size: 12px;
+          color: #78716C;
+          background: #FAF7F2;
+          border: 1px solid rgba(212, 184, 150, 0.25);
+          border-radius: 10px;
+          padding: 10px 12px;
+          line-height: 1.5;
         }
 
         .form-group label {

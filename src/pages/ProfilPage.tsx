@@ -188,31 +188,14 @@ export default function ProfilPage({ onBack }: { onBack: () => void }) {
       )}
 
       <div className="avatar-section">
-        <div 
-          className="avatar-wrapper" 
-          onClick={() => isEditing && fileInputRef.current?.click()}
-          style={{ cursor: isEditing ? "pointer" : "default" }}
-        >
-          {previewUrl || profil?.photo_url ? (
-            <img src={previewUrl || profil?.photo_url} alt={profil?.nom} />
-          ) : (
-            <div className="avatar-placeholder">{initiales}</div>
-          )}
-          {isEditing && (
-            <div className="avatar-edit-overlay">
-              <Camera size={20} />
-              <span>Changer</span>
-            </div>
-          )}
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            onChange={handleFileChange}
-            style={{ display: "none" }}
-          />
+        <div className="avatar-wrapper">
+          <div className="avatar-initials">{initiales}</div>
+          <div className="avatar-badge"><Shield size={14} /></div>
         </div>
-        <h2>{profil?.nom || "..."}</h2>
+        <div className="avatar-info">
+          <h2>{profil?.nom || "..."}</h2>
+          <p className="profil-statut"><span className="statut-dot"></span>Compte actif</p>
+        </div>
       </div>
 
       <div className="infos-section">
@@ -440,75 +423,98 @@ export default function ProfilPage({ onBack }: { onBack: () => void }) {
         /* AVATAR                                                       */
         /* ============================================================ */
         .avatar-section {
-          text-align: center;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          text-align: left;
+          background: var(--blanc);
+          border-radius: var(--radius-sm);
+          padding: 18px 20px;
           margin-bottom: 24px;
+          border: 1px solid rgba(212, 184, 150, 0.1);
+          box-shadow: var(--shadow);
         }
 
         .avatar-wrapper {
           position: relative;
-          display: inline-block;
-          width: 120px;
-          height: 120px;
-          border-radius: 50%;
-          overflow: hidden;
-          border: 4px solid #F2D6D8;
-          transition: all 0.3s ease;
-          background: #F5F0EB;
+          width: 84px;
+          height: 84px;
+          flex-shrink: 0;
         }
 
-        .avatar-wrapper:hover {
-          border-color: #C2614F;
+        .avatar-wrapper img,
+        .avatar-initials {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          border: 4px solid var(--terracotta-lighter);
+          box-sizing: border-box;
         }
 
         .avatar-wrapper img {
-          width: 100%;
-          height: 100%;
           object-fit: cover;
         }
 
-        .avatar-placeholder {
-          width: 100%;
-          height: 100%;
+        .avatar-initials {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #C2614F;
-          color: white;
-          font-size: 40px;
           font-weight: 700;
+          font-size: 26px;
+          background: var(--terracotta-lighter);
+          color: var(--terracotta);
         }
 
-        .avatar-edit-overlay {
+        .avatar-badge {
           position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: rgba(28, 25, 23, 0.6);
+          bottom: 0;
+          right: 0;
+          background: var(--sauge);
+          color: white;
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 2px solid var(--blanc);
+        }
+
+        .avatar-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+
+        .avatar-info h2 {
+          font-size: 20px;
+          font-weight: 700;
+          color: var(--gris-fonce);
+          margin: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .profil-statut {
+          font-size: 13px;
+          color: var(--sauge);
+          font-weight: 600;
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
-          color: white;
-          opacity: 0;
-          transition: opacity 0.3s ease;
-          gap: 2px;
+          justify-content: flex-start;
+          gap: 6px;
         }
 
-        .avatar-wrapper:hover .avatar-edit-overlay {
-          opacity: 1;
-        }
-
-        .avatar-edit-overlay span {
-          font-size: 12px;
-          font-weight: 600;
-        }
-
-        .avatar-section h2 {
-          font-size: 22px;
-          font-weight: 700;
-          color: #1C1917;
-          margin-top: 12px;
+        .statut-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--sauge);
+          display: inline-block;
+          flex-shrink: 0;
         }
 
         /* ============================================================ */
@@ -638,17 +644,18 @@ export default function ProfilPage({ onBack }: { onBack: () => void }) {
             font-size: 12px;
           }
 
+          .avatar-section {
+            padding: 14px 16px;
+            gap: 12px;
+          }
+
           .avatar-wrapper {
-            width: 100px;
-            height: 100px;
+            width: 64px;
+            height: 64px;
           }
 
-          .avatar-placeholder {
-            font-size: 32px;
-          }
-
-          .avatar-section h2 {
-            font-size: 19px;
+          .avatar-info h2 {
+            font-size: 17px;
           }
 
           .infos-section {

@@ -1,23 +1,49 @@
 -- ============================================================
 -- 0012_nounou_self_insert.sql
--- Permet aux nounous de s'inscrire sans agence
+-- Permet à une nounou de s'inscrire elle-même, sans être ajoutée
+-- au préalable par une agence (feature de la branche feature-noah).
 -- À exécuter après 0011_nounou_update_own_disponibilite.sql
+--
+-- NB : cette migration corrige plusieurs incompatibilités entre le
+-- fichier d'origine (branche feature-noah) et le schéma réel
+-- (0001_schema.sql) qui l'auraient fait échouer tel quel :
+--   1. `agence_id` était NOT NULL (cf. 0001_schema.sql) — corrigé
+--      ci-dessous par un ALTER, sinon tout INSERT avec agence_id
+--      NULL est rejeté par la contrainte.
+--   2. La colonne `ethnie` n'existe nulle part dans le schéma —
+--      ajoutée ci-dessous, sinon l'INSERT échoue (colonne inconnue).
+--   3. `create policy if not exists` n'est pas une syntaxe valide en
+--      PostgreSQL (CREATE POLICY ne supporte pas IF NOT EXISTS) —
+--      remplacé par un bloc DROP POLICY IF EXISTS + CREATE POLICY,
+--      idempotent et rejouable sans erreur.
+--   4. La fonction renvoyait un simple uuid, ce qui aurait demandé
+--      un aller-retour supplémentaire côté frontend pour récupérer
+--      la fiche. Elle renvoie maintenant la ligne complète, sur le
+--      même modèle que claim_nounou_profile() (0005_nounou_telephone.sql).
 -- ============================================================
+
+-- ----------------------------------------------------------
+-- [0] Ajustements de schéma nécessaires à l'auto-inscription
+-- ----------------------------------------------------------
+alter table nounous alter column agence_id drop not null;
+alter table nounous add column if not exists ethnie text;
 
 -- ----------------------------------------------------------
 -- [1] Policy pour l'auto-inscription (agence_id = NULL)
 -- ----------------------------------------------------------
-create policy if not exists "nounous_insert_self"
+drop policy if exists "nounous_insert_self" on nounous;
+create policy "nounous_insert_self"
   on nounous for insert
   with check (
     auth.uid() = user_id
-    AND agence_id IS NULL
+    and agence_id is null
   );
 
 -- ----------------------------------------------------------
 -- [2] Policy pour permettre à une nounou de mettre à jour son profil
 -- ----------------------------------------------------------
-create policy if not exists "nounous_update_self"
+drop policy if exists "nounous_update_self" on nounous;
+create policy "nounous_update_self"
   on nounous for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
@@ -25,12 +51,14 @@ create policy if not exists "nounous_update_self"
 -- ----------------------------------------------------------
 -- [3] Policy pour permettre à une nounou de supprimer son compte
 -- ----------------------------------------------------------
-create policy if not exists "nounous_delete_self"
+drop policy if exists "nounous_delete_self" on nounous;
+create policy "nounous_delete_self"
   on nounous for delete
   using (user_id = auth.uid());
 
 -- ----------------------------------------------------------
--- [4] Fonction pour l'auto-inscription (contourne RLS)
+-- [4] Fonction pour l'auto-inscription (contourne RLS le temps de
+-- l'insertion, SECURITY DEFINER comme claim_nounou_profile())
 -- ----------------------------------------------------------
 create or replace function nounou_self_register(
   p_phone text,
@@ -38,28 +66,28 @@ create or replace function nounou_self_register(
   p_quartier text,
   p_ethnie text default null
 )
-returns uuid
+returns nounous
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
   v_user_id uuid;
-  v_nounou_id uuid;
+  v_row nounous;
 begin
-  -- Récupérer l'ID de l'utilisateur authentifié
   v_user_id := auth.uid();
-  
+
   if v_user_id is null then
     raise exception 'Vous devez être authentifié pour vous inscrire.';
   end if;
 
-  -- Vérifier que l'utilisateur n'a pas déjà un profil
-  if exists (select 1 from nounous where user_id = v_user_id) then
-    raise exception 'Vous avez déjà un profil nounou.';
+  -- Idempotent : si un profil existe déjà pour cet utilisateur, on le
+  -- renvoie tel quel plutôt que d'échouer (reconnexions suivantes).
+  select * into v_row from nounous where user_id = v_user_id;
+  if found then
+    return v_row;
   end if;
 
-  -- Créer le profil nounou (sans agence)
   insert into nounous (
     user_id,
     nom,
@@ -85,23 +113,18 @@ begin
     null,
     now()
   )
-  returning id into v_nounou_id;
+  returning * into v_row;
 
-  return v_nounou_id;
-exception
-  when others then
-    raise exception 'Erreur lors de l''inscription: %', SQLERRM;
+  return v_row;
 end;
 $$;
 
--- Accorder les droits d'exécution
 grant execute on function nounou_self_register(text, text, text, text) to authenticated;
-grant execute on function nounou_self_register(text, text, text, text) to anon;
 
 -- ----------------------------------------------------------
 -- [5] Vérification : afficher les policies existantes
 -- ----------------------------------------------------------
-select 
+select
   schemaname,
   tablename,
   policyname,
@@ -109,6 +132,6 @@ select
   roles,
   cmd,
   qual
-from pg_policies 
+from pg_policies
 where tablename = 'nounous'
 order by policyname;

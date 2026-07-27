@@ -8,7 +8,6 @@ import { useUploaderDocumentAgence, validerFichierDocument } from "../hooks/useA
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
 import type { ProfileType } from "../store/useAuthStore";
-import { useAuthStore } from "../store/useAuthStore";
 
 const PROFILE_LANDING: Record<ProfileType, string> = {
   menage: "/espace-menage",
@@ -16,7 +15,9 @@ const PROFILE_LANDING: Record<ProfileType, string> = {
   nounou: "/espace-nounou",
 };
 
-// ===== VALIDATION TÉLÉPHONE =====
+/* ================================================================ */
+/* ===== VALIDATION TÉLÉPHONE ====================================== */
+/* ================================================================ */
 const validatePhoneNumber = (phone: string): boolean => {
   let clean = phone.replace(/\s/g, "");
   if (clean.startsWith("+225")) clean = clean.substring(4);
@@ -26,13 +27,32 @@ const validatePhoneNumber = (phone: string): boolean => {
   return ["01", "05", "07", "08", "09"].includes(prefix);
 };
 
-// ===== PAGE D'INSCRIPTION =====
+/* ================================================================ */
+/* ===== PAGE D'INSCRIPTION / ACTIVATION (branchée sur Supabase) ==== */
+/* ================================================================ */
+//
+// Deux corrections importantes par rapport au design d'origine :
+//
+// 1. Le PIN n'était prévu QUE pour l'agence. Notre architecture réelle
+//    utilise le PIN comme mode de connexion pour les 3 profils : ajouté
+//    aussi pour menage, et transformé pour nounou (voir point 2).
+//
+// 2. Le formulaire nounou permettait une auto-inscription libre (nom,
+//    quartier, sans agence). Impossible chez nous : `nounous.agence_id`
+//    est NOT NULL (cf. cahier des charges §6) — une nounou ne peut
+//    exister sans avoir été ajoutée par une agence au préalable. Ce
+//    n'est donc pas une INSCRIPTION mais une ACTIVATION : seuls le
+//    téléphone (déjà renseigné par l'agence) et un PIN sont demandés ;
+//    le rattachement se fait via la RPC `claim_nounou_profile` après
+//    vérification du SMS, pas par un INSERT.
+//
+// Ajout par rapport à l'original : l'étape de confirmation par SMS
+// (OTP), absente du fichier de départ (le "console.log" simulé
+// redirigeait directement sans jamais vérifier de code).
 export default function InscriptionPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialProfil = searchParams.get("profil") as ProfileType | null;
-
-  const { setProfileType, setUser } = useAuthStore();
 
   const [profil, setProfil] = useState<ProfileType | null>(initialProfil);
   const [screen, setScreen] = useState<"choix" | "form">(initialProfil ? "form" : "choix");
@@ -41,14 +61,11 @@ export default function InscriptionPage() {
   const [formData, setFormData] = useState({
     prenom: "",
     nom: "",
-    prenom: "",
     telephone: "",
     quartier: "",
     ethnie: "",
     email: "",
     description: "",
-    ethnie: "",
-    experience: "",
   });
   const [phoneError, setPhoneError] = useState("");
   const [serverError, setServerError] = useState("");
@@ -90,15 +107,13 @@ export default function InscriptionPage() {
     }
   };
 
-  // ===== SOUMISSION - MODE MOCK UNIQUEMENT =====
+  // ===== ÉTAPE 1 : créer le compte (signUp + PIN), déclenche l'envoi du SMS =====
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setServerError("");
-    setIsLoading(true);
 
     if (!profil) {
       setServerError("Veuillez sélectionner un profil.");
-      setIsLoading(false);
       return;
     }
     // La page Inscription ne gère plus que l'auto-inscription nounou
@@ -108,22 +123,11 @@ export default function InscriptionPage() {
     const isSelfRegisterNounou = profil === "nounou";
     if (!validatePhoneNumber(formData.telephone)) {
       setPhoneError("Numéro invalide. Utilisez un format 07 XX XX XX XX");
-      setIsLoading(false);
       return;
     }
-
-    // Vérifications selon le profil
-    if (profil === "menage" || profil === "agence") {
-      if (pin.join("").length !== PIN_LENGTH) {
-        setServerError(`Veuillez entrer un code PIN à ${PIN_LENGTH} chiffres.`);
-        setIsLoading(false);
-        return;
-      }
-      if (!formData.quartier) {
-        setServerError("Veuillez sélectionner votre commune.");
-        setIsLoading(false);
-        return;
-      }
+    if (pin.join("").length !== PIN_LENGTH) {
+      setServerError(`Veuillez entrer un code PIN à ${PIN_LENGTH} chiffres.`);
+      return;
     }
     if ((profil !== "nounou" || isSelfRegisterNounou) && !formData.quartier) {
       setServerError("Veuillez sélectionner votre quartier.");
@@ -153,31 +157,6 @@ export default function InscriptionPage() {
     // qu'un seul champ (nom de l'agence), pas de prénom.
     const nomComplet = `${formData.prenom} ${formData.nom}`.trim();
 
-    // Nounou : nom + prénom + ethnie + expérience professionnelle requis
-    if (profil === "nounou") {
-      if (!formData.nom || !formData.prenom) {
-        setServerError("Veuillez remplir votre nom et prénom.");
-        setIsLoading(false);
-        return;
-      }
-      if (!formData.quartier) {
-        setServerError("Veuillez sélectionner votre commune.");
-        setIsLoading(false);
-        return;
-      }
-      if (!formData.ethnie) {
-        setServerError("Veuillez renseigner votre ethnie.");
-        setIsLoading(false);
-        return;
-      }
-      if (!formData.experience) {
-        setServerError("Veuillez renseigner votre expérience professionnelle.");
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    // 🔥 SIMULATION D'INSCRIPTION
     try {
       const result = await inscription.mutateAsync({
         phone: formData.telephone,
@@ -216,31 +195,8 @@ export default function InscriptionPage() {
         }
         navigate(PROFILE_LANDING[profil]);
       }
-
-      const fakeUser = {
-        id: `fake-${Date.now()}`,
-        user_id: `fake-user-${Date.now()}`,
-        nom: fullName,
-        telephone: formData.telephone,
-        quartier: formData.quartier,
-        ...(profil === "nounou" && {
-          ethnie: formData.ethnie,
-          experience: formData.experience,
-          agence_id: null,
-          disponible: true,
-        }),
-        ...(profil === "agence" && { description: formData.description || "", email: formData.email || "" }),
-        created_at: new Date().toISOString(),
-      };
-
-      setUser(fakeUser);
-      setProfileType(profil);
-      navigate(PROFILE_LANDING[profil]);
-      
     } catch (err) {
       setServerError(getErrorMessage(err));
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -323,6 +279,14 @@ export default function InscriptionPage() {
             {isNounou && "Inscrivez-vous pour être mise en relation avec une agence de votre quartier"}
           </p>
 
+          {isNounou && (
+            <p className="field-hint" style={{ marginBottom: 12 }}>
+              💡 Déjà ajoutée par une agence ? Pas besoin de vous inscrire ici : allez sur{" "}
+              <strong>Se connecter</strong> avec le numéro qu'elle a renseigné, votre compte
+              s'active automatiquement à la première connexion.
+            </p>
+          )}
+
           {serverError && (
             <p style={{ color: "#E87A7A", fontSize: 14, marginBottom: 12 }}>{serverError}</p>
           )}
@@ -370,7 +334,6 @@ export default function InscriptionPage() {
               )
             )}
 
-            {/* TÉLÉPHONE */}
             <div className="form-group">
               <label>Numéro de téléphone <span className="required">*</span></label>
               <input
@@ -476,35 +439,30 @@ export default function InscriptionPage() {
               </>
             )}
 
-            {/* PIN : UNIQUEMENT pour Ménage et Agence */}
-            {!isNounou && (
-              <div className="form-group">
-                <label className="pin-label">
-                  <Lock size={16} className="pin-icon" />
-                  Code PIN ({PIN_LENGTH} chiffres) <span className="required">*</span>
-                </label>
-                <div className="pin-container">
-                  {[0, 1, 2, 3].map((index) => (
-                    <input
-                      key={index}
-                      id={`pin-${index}`}
-                      type={showPin ? "text" : "password"}
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={pin[index]}
-                      onChange={(e) => handlePinChange(index, e.target.value)}
-                      onKeyDown={(e) => handlePinKeyDown(index, e)}
-                      className="pin-input"
-                      autoFocus={index === 0}
-                    />
-                  ))}
-                  <button type="button" onClick={() => setShowPin(!showPin)} className="pin-toggle">
-                    {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                <p className="pin-hint">
-                  💡 Ce PIN vous servira à vous reconnecter.
-                </p>
+            {/* PIN : demandé aux 3 profils (remplace l'OTP au quotidien) */}
+            <div className="form-group">
+              <label className="pin-label">
+                <Lock size={16} className="pin-icon" />
+                Code PIN ({PIN_LENGTH} chiffres)
+              </label>
+              <div className="pin-container">
+                {[0, 1, 2, 3].map((index) => (
+                  <input
+                    key={index}
+                    id={`pin-${index}`}
+                    type={showPin ? "text" : "password"}
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={pin[index]}
+                    onChange={(e) => handlePinChange(index, e.target.value)}
+                    onKeyDown={(e) => handlePinKeyDown(index, e)}
+                    className="pin-input"
+                    autoFocus={index === 0}
+                  />
+                ))}
+                <button type="button" onClick={() => setShowPin(!showPin)} className="pin-toggle">
+                  {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
               <p className="pin-hint">
                 💡 Ce PIN vous servira à vous reconnecter directement, sans recevoir de SMS à chaque fois.
@@ -542,6 +500,9 @@ export default function InscriptionPage() {
       </div>
 
       <style>{`
+        /* ============================================================ */
+        /* PAGE                                                         */
+        /* ============================================================ */
         .inscription-page {
           min-height: 100vh;
           display: flex;
@@ -558,8 +519,8 @@ export default function InscriptionPage() {
           background: white;
           border-radius: 32px;
           padding: clamp(24px, 5vw, 56px);
-          box-shadow: 0 24px 80px rgba(28,25,23,0.06);
-          border: 1px solid rgba(212,184,150,0.12);
+          box-shadow: 0 24px 80px rgba(28, 25, 23, 0.06);
+          border: 1px solid rgba(212, 184, 150, 0.12);
         }
 
         .inscription-header {
@@ -649,7 +610,7 @@ export default function InscriptionPage() {
 
         .profil-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 12px 32px rgba(0,0,0,0.10);
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.10);
         }
 
         .profil-card-title {
@@ -674,10 +635,6 @@ export default function InscriptionPage() {
           margin-bottom: 16px;
         }
 
-        .back-button:hover {
-          color: #C2614F;
-        }
-
         .form-title {
           font-family: "'DM Serif Display', serif";
           font-size: clamp(28px, 2.8vw, 36px);
@@ -697,10 +654,46 @@ export default function InscriptionPage() {
           gap: 16px;
         }
 
-        .form-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 14px;
+        .nounou-mode-selector {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+
+        .nounou-mode-option {
+          flex: 1;
+          text-align: left;
+          padding: 14px 16px;
+          border: 2px solid #E8DDD0;
+          border-radius: 14px;
+          background: transparent;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: 14px;
+          font-weight: 700;
+          color: #1C1917;
+        }
+
+        .nounou-mode-option small {
+          display: block;
+          font-weight: 400;
+          font-size: 12px;
+          color: #78716C;
+          margin-top: 4px;
+        }
+
+        .nounou-mode-option:hover {
+          border-color: #D4B896;
+        }
+
+        .nounou-mode-option.active {
+          border-color: #C2614F;
+          background: #C2614F08;
+          color: #C2614F;
+        }
+
+        .nounou-mode-option.active small {
+          color: #C2614F;
         }
 
         .form-group {
@@ -860,7 +853,7 @@ export default function InscriptionPage() {
           font-size: clamp(16px, 1vw, 17px);
           font-weight: 700;
           cursor: pointer;
-          transition: background 0.2s;
+          transition: background 0.2s, transform 0.2s;
           margin-top: 4px;
           display: flex;
           align-items: center;
@@ -870,11 +863,6 @@ export default function InscriptionPage() {
 
         .submit-button:hover {
           background: #B25545;
-        }
-
-        .submit-button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
         }
 
         .login-link {
@@ -895,6 +883,9 @@ export default function InscriptionPage() {
           text-decoration: underline;
         }
 
+        /* ============================================================ */
+        /* RESPONSIVE                                                   */
+        /* ============================================================ */
         @media (max-width: 820px) {
           .inscription-grid {
             grid-template-columns: 1fr;
@@ -920,9 +911,6 @@ export default function InscriptionPage() {
           }
           .form-group {
             text-align: left;
-          }
-          .form-row {
-            grid-template-columns: 1fr;
           }
         }
 
@@ -970,7 +958,29 @@ export default function InscriptionPage() {
             flex-wrap: wrap;
           }
         }
+        .otp-container {
+          display: flex;
+          gap: 10px;
+        }
+
+        .otp-input {
+          width: 44px;
+          height: 52px;
+          text-align: center;
+          font-size: 20px;
+          font-weight: 600;
+          border: 2px solid rgba(28, 25, 23, 0.12);
+          border-radius: 12px;
+          background: #FAF7F2;
+        }
+
+        .otp-input:focus {
+          outline: none;
+          border-color: #4A7C59;
+        }
+
       `}</style>
+
     </div>
   );
 }
