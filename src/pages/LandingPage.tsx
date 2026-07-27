@@ -304,7 +304,7 @@ export default function LandingPage() {
               }}
             >
               {[
-                { bg: "#4A7C59", icon: <Home size={20} />, titre: "Famille", sub: "Je cherche", profil: "menage" },
+                { bg: "#4A7C59", icon: <Home size={20} />, titre: "Ménage", sub: "Je cherche", profil: "menage" },
                 { bg: "#C2614F", icon: <Building2 size={20} />, titre: "Agence", sub: "Je gère", profil: "agence" },
                 { bg: "#D4B896", icon: <UserCheck size={20} />, titre: "Nounou", sub: "Je m'inscris", profil: "nounou" },
               ].map((b, i) => (
@@ -365,7 +365,7 @@ export default function LandingPage() {
           }}
         >
           {[
-            { bg: "#4A7C59", icon: <Home size={32} />, titre: "Famille", desc: "Je cherche une nounou ou une aide pour mon domicile", btn: "Je cherche", btnBg: "#4A7C59", profil: "menage" },
+            { bg: "#4A7C59", icon: <Home size={32} />, titre: "Ménage", desc: "Je cherche une nounou ou une aide pour mon domicile", btn: "Je cherche", btnBg: "#4A7C59", profil: "menage" },
             { bg: "#C2614F", icon: <Building2 size={32} />, titre: "Agence", desc: "Je gère un vivier de nounous et je place des professionnelles", btn: "Accéder →", btnBg: "#C2614F", profil: "agence" },
             { bg: "#D4B896", icon: <UserCheck size={32} />, titre: "Nounou", desc: "Je m'inscris et les agences de mon quartier me contactent", btn: "Je m'inscris", btnBg: "#D4B896", profil: "nounou" },
           ].map((c, i) => (
@@ -679,7 +679,7 @@ export default function LandingPage() {
           <FadeUp>
             <div style={{ textAlign: "center", marginBottom: 40 }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 3vw, 36px)", color: "#1C1917", marginBottom: 6 }}>
-                Avis des familles
+                Avis des ménages
               </h2>
               <p style={{ color: "#78716C", fontSize: 16 }}>Des parents comme vous</p>
             </div>
@@ -905,7 +905,7 @@ export default function LandingPage() {
                 <span style={{ color: "white", fontWeight: 700, fontSize: 15 }}>Nounou Connect</span>
               </div>
               <p style={{ fontSize: 12, lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
-                La plateforme de mise en relation entre familles, agences de placement et nounous professionnelles à Abidjan.
+                La plateforme de mise en relation entre ménages, agences de placement et nounous professionnelles à Abidjan.
               </p>
               <div style={{ marginTop: 12, display: "flex", justifyContent: "center", gap: 16 }}>
                 {["Instagram", "Facebook", "WhatsApp"].map((s) => (
@@ -918,11 +918,16 @@ export default function LandingPage() {
             </div>
             <div>
               <h4 style={{ color: "white", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Liens</h4>
-              {["À propos", "FAQ", "Conditions", "Confidentialité"].map((l) => (
-                <a key={l} href="#" style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", textDecoration: "none", marginBottom: 6, transition: "color 0.2s" }}
+              {[
+                { label: "À propos", href: "/a-propos" },
+                { label: "FAQ", href: "/aide" },
+                { label: "Conditions", href: "/conditions" },
+                { label: "Confidentialité", href: "/confidentialite" },
+              ].map((l) => (
+                <a key={l.label} href={l.href} style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", textDecoration: "none", marginBottom: 6, transition: "color 0.2s" }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
                   onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
-                >{l}</a>
+                >{l.label}</a>
               ))}
             </div>
             <div>

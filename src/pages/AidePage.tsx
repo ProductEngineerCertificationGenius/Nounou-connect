@@ -20,12 +20,12 @@ export default function AidePage() {
       id: 1,
       icon: <Search className="w-8 h-8" />,
       title: "Je découvre Nounou Connect",
-      description: "Nounou Connect est une plateforme qui met en relation les familles, les agences de placement et les nounous en Côte d'Ivoire. Toutes les nounous sont vérifiées par leurs agences partenaires avant d'être présentées sur la plateforme.",
+      description: "Nounou Connect est une plateforme qui met en relation les ménages, les agences de placement et les nounous en Côte d'Ivoire. Toutes les nounous sont vérifiées par leurs agences partenaires avant d'être présentées sur la plateforme.",
       details: [
         "✅ Des profils vérifiés et authentifiés",
         "✅ Des agences partenaires sélectionnées",
         "✅ Une mise en relation simple et rapide",
-        "✅ Un service gratuit pour les familles"
+        "✅ Un service gratuit pour les ménages"
       ]
     },
     {
@@ -48,7 +48,7 @@ export default function AidePage() {
       details: [
         "🔒 Vérification d'identité",
         "📋 Validation de l'expérience",
-        "⭐ Notation par les familles",
+        "⭐ Notation par les ménages",
         "🏅 Badge de confiance visible"
       ]
     },
@@ -81,20 +81,20 @@ export default function AidePage() {
   const roles = [
     {
       icon: <Building2 className="w-6 h-6" />,
-      title: "Pour les Familles",
+      title: "Pour les Ménages",
       description: "Trouvez une nounou de confiance près de chez vous. Les profils sont vérifiés par les agences partenaires. Contact direct via WhatsApp.",
       bg: "#4A7C59"
     },
     {
       icon: <Building2 className="w-6 h-6" />,
       title: "Pour les Agences",
-      description: "Gérez votre vivier de nounous, recevez des demandes de familles et placez vos professionnelles facilement.",
+      description: "Gérez votre vivier de nounous, recevez des demandes de ménages et placez vos professionnelles facilement.",
       bg: "#C2614F"
     },
     {
       icon: <User className="w-6 h-6" />,
       title: "Pour les Nounous",
-      description: "Inscrivez-vous, les agences de votre quartier vous contacteront. Une fois rattachée à une agence, votre profil sera visible des familles.",
+      description: "Inscrivez-vous, les agences de votre quartier vous contacteront. Une fois rattachée à une agence, votre profil sera visible des ménages.",
       bg: "#D4B896"
     }
   ];
@@ -114,7 +114,7 @@ export default function AidePage() {
     },
     {
       question: "L'inscription est-elle gratuite ?",
-      answer: "Oui, l'inscription et la mise en relation sont totalement gratuites pour les familles."
+      answer: "Oui, l'inscription et la mise en relation sont totalement gratuites pour les ménages."
     }
   ];
 

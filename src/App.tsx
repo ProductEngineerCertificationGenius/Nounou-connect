@@ -6,6 +6,8 @@ import ConnexionPage from "./pages/ConnexionPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AidePage from "./pages/AidePage";
 import AProposPage from "./pages/AProposPage";
+import ConditionsPage from "./pages/ConditionsPage";
+import ConfidentialitePage from "./pages/ConfidentialitePage";
 import EspaceMenage from "./pages/EspaceMenage";
 import EspaceAgence from "./pages/EspaceAgence";
 import EspaceNounou from "./pages/EspaceNounou";
@@ -48,6 +50,8 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/aide" element={<AidePage />} />
       <Route path="/a-propos" element={<AProposPage />} />
+      <Route path="/conditions" element={<ConditionsPage />} />
+      <Route path="/confidentialite" element={<ConfidentialitePage />} />
 
       <Route
         path="/espace-menage"

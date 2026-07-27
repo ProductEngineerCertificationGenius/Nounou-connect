@@ -113,7 +113,7 @@ export default function ConnexionPage() {
                     className={`profil-option ${selectedProfil === "menage" ? "active" : ""}`}
                     onClick={() => setSelectedProfil("menage")}
                   >
-                    🏠 Famille
+                    🏠 Ménage
                   </button>
                   <button
                     type="button"

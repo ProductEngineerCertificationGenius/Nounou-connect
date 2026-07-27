@@ -150,7 +150,7 @@ export default function ResetPasswordPage() {
                     <label>Sélectionnez votre profil</label>
                     <div className="profil-selector">
                       {[
-                        { id: "menage" as const, label: "🏠 Famille" },
+                        { id: "menage" as const, label: "🏠 Ménage" },
                         { id: "agence" as const, label: "🏢 Agence" },
                         { id: "nounou" as const, label: "👩‍🍼 Nounou" },
                       ].map((p) => (

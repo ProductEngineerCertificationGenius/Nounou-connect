@@ -22,7 +22,7 @@ export default defineConfig({
         id: '/',
         name: 'Nounou Connect - Trouvez votre nounou de confiance',
         short_name: 'Nounou Connect',
-        description: "Plateforme de mise en relation entre familles, agences et nounous en Côte d'Ivoire",
+        description: "Plateforme de mise en relation entre ménages, agences et nounous en Côte d'Ivoire",
         theme_color: '#C2614F',
         background_color: '#FAF7F2',
         display: 'standalone',

@@ -1,9 +1,10 @@
 // src/pages/InscriptionPage.tsx
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Home, Building2, UserCheck, Eye, EyeOff, Shield, Lock } from "lucide-react";
+import { Home, Building2, UserCheck, Eye, EyeOff, Shield, Lock, Upload, FileWarning, FileCheck2 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useInscription } from "../hooks/useAuth";
+import { useUploaderDocumentAgence, validerFichierDocument } from "../hooks/useAgence";
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
 import type { ProfileType } from "../store/useAuthStore";
@@ -36,14 +37,12 @@ const validatePhoneNumber = (phone: string): boolean => {
 //    utilise le PIN comme mode de connexion pour les 3 profils : ajouté
 //    aussi pour menage, et transformé pour nounou (voir point 2).
 //
-// 2. Le formulaire nounou permettait une auto-inscription libre (nom,
-//    quartier, sans agence). Impossible chez nous : `nounous.agence_id`
-//    est NOT NULL (cf. cahier des charges §6) — une nounou ne peut
-//    exister sans avoir été ajoutée par une agence au préalable. Ce
-//    n'est donc pas une INSCRIPTION mais une ACTIVATION : seuls le
-//    téléphone (déjà renseigné par l'agence) et un PIN sont demandés ;
-//    le rattachement se fait via la RPC `claim_nounou_profile` après
-//    vérification du SMS, pas par un INSERT.
+// 2. Seules les nounous sans agence s'inscrivent sur la plateforme :
+//    le formulaire ne propose plus que l'auto-inscription libre (nom,
+//    prénom, commune, PIN), via la RPC `nounou_self_register`
+//    (cf. migration 0012_nounou_self_insert.sql). L'ancien parcours
+//    d'« activation » réservé aux nounous déjà ajoutées par une
+//    agence (via `claim_nounou_profile`) a été retiré.
 //
 // Ajout par rapport à l'original : l'étape de confirmation par SMS
 // (OTP), absente du fichier de départ (le "console.log" simulé
@@ -55,26 +54,35 @@ export default function InscriptionPage() {
 
   const [profil, setProfil] = useState<ProfileType | null>(initialProfil);
   const [screen, setScreen] = useState<"choix" | "form">(initialProfil ? "form" : "choix");
-  // Choix propre au profil nounou (feature reprise de feature-noah) :
-  // "avec-agence" garde le parcours d'activation existant (fiche déjà
-  // créée par une agence, rattachée via claim_nounou_profile) ;
-  // "sans-agence" est la nouvelle auto-inscription (nounou_self_register,
-  // cf. migration 0012_nounou_self_insert.sql).
-  const [nounouMode, setNounouMode] = useState<"avec-agence" | "sans-agence" | null>(null);
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
   const [formData, setFormData] = useState({
     nom: "",
+    // Séparé du nom pour la nounou en auto-inscription (repris du
+    // formulaire de cprincess) ; concaténés avant l'appel à l'API pour
+    // ne pas toucher au hook useInscription / à la RPC nounou_self_register
+    // qui n'attendent toujours qu'un seul champ "nom".
+    prenom: "",
     telephone: "",
     quartier: "",
     ethnie: "",
+    // Nouveau champ repris de cprincess. Pas encore persisté : ni
+    // useInscription, ni nounou_self_register, ni la table `nounous`
+    // ne savent quoi en faire pour l'instant (cf. modifications
+    // restantes signalées en fin de réponse).
+    experience: "",
     email: "",
     description: "",
   });
   const [phoneError, setPhoneError] = useState("");
   const [serverError, setServerError] = useState("");
+  // Document justificatif agence : obligatoire, envoyé dans la foulée
+  // de la création du compte (cf. useUploaderDocumentAgence).
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentError, setDocumentError] = useState("");
 
   const inscription = useInscription();
+  const uploadDocument = useUploaderDocumentAgence();
 
   useEffect(() => {
     if (initialProfil) {
@@ -115,11 +123,7 @@ export default function InscriptionPage() {
       setServerError("Veuillez sélectionner un profil.");
       return;
     }
-    const isSelfRegisterNounou = profil === "nounou" && nounouMode === "sans-agence";
-    if (profil === "nounou" && !nounouMode) {
-      setServerError("Veuillez indiquer si vous avez déjà une agence.");
-      return;
-    }
+    const isSelfRegisterNounou = profil === "nounou";
     if (!validatePhoneNumber(formData.telephone)) {
       setPhoneError("Numéro invalide. Utilisez un format 07 XX XX XX XX");
       return;
@@ -132,9 +136,20 @@ export default function InscriptionPage() {
       setServerError("Veuillez sélectionner votre quartier.");
       return;
     }
-    if (isSelfRegisterNounou && !formData.nom) {
+    if (isSelfRegisterNounou && (!formData.prenom || !formData.nom)) {
       setServerError("Veuillez remplir votre prénom et nom.");
       return;
+    }
+    if (profil === "agence") {
+      if (!documentFile) {
+        setServerError("Veuillez joindre un document justifiant l'existence de votre agence.");
+        return;
+      }
+      const errFichier = validerFichierDocument(documentFile);
+      if (errFichier) {
+        setServerError(errFichier);
+        return;
+      }
     }
 
     try {
@@ -147,10 +162,32 @@ export default function InscriptionPage() {
             ? undefined
             : { nom: formData.nom, telephone: formData.telephone, quartier: formData.quartier },
         nounouSelfRegister: isSelfRegisterNounou
-          ? { nom: formData.nom, quartier: formData.quartier, ethnie: formData.ethnie || undefined }
+          ? {
+              nom: `${formData.prenom} ${formData.nom}`.trim(),
+              quartier: formData.quartier,
+              ethnie: formData.ethnie || undefined,
+            }
           : undefined,
       });
       if (result.row) {
+        // Le compte agence existe désormais en base (result.row.id) : on
+        // envoie le document justificatif avant de rediriger. Le compte
+        // est déjà créé à ce stade même si l'upload échoue ci-dessous
+        // (impossible de "annuler" une inscription déjà faite côté
+        // Supabase Auth) — on affiche alors l'erreur et l'agence pourra
+        // réessayer depuis l'écran de statut (EspaceAgence) qui gère
+        // aussi l'envoi du document si celui-ci est manquant.
+        if (profil === "agence" && documentFile) {
+          try {
+            await uploadDocument.mutateAsync({ agenceId: result.row.id, file: documentFile });
+          } catch (uploadErr) {
+            setServerError(
+              `Votre compte a été créé, mais l'envoi du document a échoué (${getErrorMessage(
+                uploadErr
+              )}). Vous pourrez le renvoyer depuis votre espace agence.`
+            );
+          }
+        }
         navigate(PROFILE_LANDING[profil]);
       }
     } catch (err) {
@@ -160,7 +197,6 @@ export default function InscriptionPage() {
 
   const resetProfil = () => {
     setProfil(null);
-    setNounouMode(null);
     setScreen("choix");
   };
 
@@ -177,7 +213,7 @@ export default function InscriptionPage() {
         <p className="inscription-subtitle">Choisissez votre profil pour commencer</p>
         <div className="profil-grid">
           {[
-            { id: "menage" as const, bg: "#4A7C59", icon: <Home size={28} />, titre: "Famille", sub: "Je cherche" },
+            { id: "menage" as const, bg: "#4A7C59", icon: <Home size={28} />, titre: "Ménage", sub: "Je cherche" },
             { id: "agence" as const, bg: "#C2614F", icon: <Building2 size={28} />, titre: "Agence", sub: "Je gère" },
             { id: "nounou" as const, bg: "#D4B896", icon: <UserCheck size={28} />, titre: "Nounou", sub: "Rejoindre" },
           ].map((c) => (
@@ -211,7 +247,7 @@ export default function InscriptionPage() {
     const isAgence = profil === "agence";
     const isMenage = profil === "menage";
     const isNounou = profil === "nounou";
-    const isSelfRegisterNounou = isNounou && nounouMode === "sans-agence";
+    const isSelfRegisterNounou = isNounou;
     const showNomQuartier = !isNounou || isSelfRegisterNounou;
 
     return (
@@ -225,40 +261,15 @@ export default function InscriptionPage() {
           </button>
 
           <h2 className="form-title">
-            {isMenage && "Créer mon compte (Famille)"}
+            {isMenage && "Créer mon compte (Ménage)"}
             {isAgence && "Créer mon compte (Agence)"}
-            {isNounou && isSelfRegisterNounou && "Créer mon compte (Nounou)"}
-            {isNounou && !isSelfRegisterNounou && "Activer mon compte (Nounou)"}
+            {isNounou && "Créer mon compte (Nounou)"}
           </h2>
           <p className="form-subtitle">
             {isMenage && "Remplissez vos informations pour commencer"}
             {isAgence && "Créez l'espace professionnel de votre agence"}
-            {isNounou && isSelfRegisterNounou &&
-              "Inscrivez-vous pour être visible auprès des agences de votre quartier"}
-            {isNounou && !isSelfRegisterNounou &&
-              "Utilisez le numéro que votre agence a renseigné pour vous ajouter à son vivier"}
+            {isNounou && "Inscrivez-vous pour être visible auprès des agences de votre quartier"}
           </p>
-
-          {isNounou && (
-            <div className="nounou-mode-selector">
-              <button
-                type="button"
-                className={`nounou-mode-option ${nounouMode === "avec-agence" ? "active" : ""}`}
-                onClick={() => setNounouMode("avec-agence")}
-              >
-                J'ai une agence
-                <small>Elle a déjà renseigné mon numéro</small>
-              </button>
-              <button
-                type="button"
-                className={`nounou-mode-option ${nounouMode === "sans-agence" ? "active" : ""}`}
-                onClick={() => setNounouMode("sans-agence")}
-              >
-                Je n'ai pas d'agence
-                <small>Je m'inscris directement</small>
-              </button>
-            </div>
-          )}
 
           {serverError && (
             <p style={{ color: "#E87A7A", fontSize: 14, marginBottom: 12 }}>{serverError}</p>
@@ -266,7 +277,34 @@ export default function InscriptionPage() {
 
           <form onSubmit={handleSubmit} className="form-container">
             {/* Nom : demandé sauf activation nounou avec agence (déjà renseigné par l'agence) */}
-            {showNomQuartier && (
+            {/* Nounou en auto-inscription : prénom + nom séparés (repris du formulaire cprincess) */}
+            {isSelfRegisterNounou && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Prénom <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    name="prenom"
+                    placeholder="Amenan"
+                    value={formData.prenom}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Nom <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    name="nom"
+                    placeholder="Koffi"
+                    value={formData.nom}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+            {showNomQuartier && !isSelfRegisterNounou && (
               <div className="form-group">
                 <label>
                   {isAgence ? "Nom de l'agence" : "Prénom et Nom"} <span className="required">*</span>
@@ -299,15 +337,29 @@ export default function InscriptionPage() {
                 required
               />
               {phoneError && <span className="error-message">{phoneError}</span>}
-              {isNounou && !isSelfRegisterNounou && (
-                <p className="field-hint">
-                  💡 Doit correspondre exactement au numéro renseigné par votre agence.
-                </p>
-              )}
             </div>
 
-            {/* Quartier : pas demandé à la nounou, déjà renseigné par l'agence */}
-            {showNomQuartier && (
+            {/* Quartier : pas demandé à la nounou en activation (déjà renseigné par l'agence) */}
+            {/* Nounou en auto-inscription : liste de communes élargie (reprise de cprincess) */}
+            {isSelfRegisterNounou && (
+              <div className="form-group">
+                <label>Commune <span className="required">*</span></label>
+                <select name="quartier" value={formData.quartier} onChange={handleChange} required>
+                  <option value="">Sélectionnez votre commune</option>
+                  <option value="Abobo">Abobo</option>
+                  <option value="Cocody">Cocody</option>
+                  <option value="Koumassi">Koumassi</option>
+                  <option value="Marcory">Marcory</option>
+                  <option value="Plateau">Plateau</option>
+                  <option value="Yopougon">Yopougon</option>
+                  <option value="Anyama">Anyama</option>
+                  <option value="Bingerville">Bingerville</option>
+                  <option value="Grand-Bassam">Grand-Bassam</option>
+                  <option value="Port-Bouët">Port-Bouët</option>
+                </select>
+              </div>
+            )}
+            {showNomQuartier && !isSelfRegisterNounou && (
               <div className="form-group">
                 <label>Quartier <span className="required">*</span></label>
                 <select name="quartier" value={formData.quartier} onChange={handleChange} required>
@@ -322,16 +374,32 @@ export default function InscriptionPage() {
             )}
 
             {isSelfRegisterNounou && (
-              <div className="form-group">
-                <label>Ethnie <span className="optional">(optionnel)</span></label>
-                <input
-                  type="text"
-                  name="ethnie"
-                  placeholder="Akan, Baoulé, Malinké, etc."
-                  value={formData.ethnie}
-                  onChange={handleChange}
-                />
-              </div>
+              <>
+                <div className="form-group">
+                  <label>Ethnie <span className="optional">(optionnel)</span></label>
+                  <input
+                    type="text"
+                    name="ethnie"
+                    placeholder="Akan, Baoulé, Malinké, etc."
+                    value={formData.ethnie}
+                    onChange={handleChange}
+                  />
+                </div>
+                {/* Repris de cprincess, laissé optionnel : ce champ n'est
+                    pas encore envoyé à nounou_self_register (cf. modifications
+                    restantes) — le rendre obligatoire ici bloquerait
+                    l'inscription pour rien tant que le backend ne le stocke pas. */}
+                <div className="form-group">
+                  <label>Expérience professionnelle <span className="optional">(optionnel)</span></label>
+                  <textarea
+                    name="experience"
+                    placeholder="Ex : 3 ans d'expérience en garde d'enfants, ancienne nounou chez le ménage Koffi..."
+                    value={formData.experience}
+                    onChange={handleChange}
+                    rows={3}
+                  />
+                </div>
+              </>
             )}
 
             {isAgence && (
@@ -355,6 +423,39 @@ export default function InscriptionPage() {
                     onChange={handleChange}
                     rows={3}
                   />
+                </div>
+                <div className="form-group">
+                  <label>
+                    Document justifiant l'existence de l'agence <span className="required">*</span>
+                  </label>
+                  <label className="document-upload-zone">
+                    {documentFile ? <FileCheck2 size={20} /> : <Upload size={20} />}
+                    <span>{documentFile ? documentFile.name : "RCCM, registre de commerce, ou équivalent (PDF, JPG, PNG)"}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const err = validerFichierDocument(f);
+                        if (err) {
+                          setDocumentError(err);
+                          setDocumentFile(null);
+                          return;
+                        }
+                        setDocumentError("");
+                        setDocumentFile(f);
+                      }}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                  {documentError && (
+                    <span className="error-message"><FileWarning size={14} /> {documentError}</span>
+                  )}
+                  <p className="field-hint">
+                    💡 Ce document nous permet de vérifier que votre agence existe réellement.
+                    Il ne sera visible que par notre équipe, jamais publié sur votre profil.
+                  </p>
                 </div>
               </>
             )}
@@ -384,13 +485,10 @@ export default function InscriptionPage() {
                   {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              <p className="pin-hint">
-                💡 Ce PIN vous servira à vous reconnecter directement, sans recevoir de SMS à chaque fois.
-              </p>
             </div>
 
-            <button type="submit" className="submit-button" disabled={inscription.isPending}>
-              <Shield size={18} /> {inscription.isPending ? "Envoi..." : "S'inscrire"}
+            <button type="submit" className="submit-button" disabled={inscription.isPending || uploadDocument.isPending}>
+              <Shield size={18} /> {inscription.isPending || uploadDocument.isPending ? "Envoi..." : "S'inscrire"}
             </button>
 
             <p className="login-link">
@@ -574,46 +672,10 @@ export default function InscriptionPage() {
           gap: 16px;
         }
 
-        .nounou-mode-selector {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        .nounou-mode-option {
-          flex: 1;
-          text-align: left;
-          padding: 14px 16px;
-          border: 2px solid #E8DDD0;
-          border-radius: 14px;
-          background: transparent;
-          cursor: pointer;
-          transition: all 0.2s;
-          font-size: 14px;
-          font-weight: 700;
-          color: #1C1917;
-        }
-
-        .nounou-mode-option small {
-          display: block;
-          font-weight: 400;
-          font-size: 12px;
-          color: #78716C;
-          margin-top: 4px;
-        }
-
-        .nounou-mode-option:hover {
-          border-color: #D4B896;
-        }
-
-        .nounou-mode-option.active {
-          border-color: #C2614F;
-          background: #C2614F08;
-          color: #C2614F;
-        }
-
-        .nounou-mode-option.active small {
-          color: #C2614F;
+        .form-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
         }
 
         .form-group {
@@ -656,6 +718,24 @@ export default function InscriptionPage() {
         .form-group textarea {
           resize: vertical;
           min-height: 60px;
+        }
+
+        .document-upload-zone {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 16px;
+          border: 1.5px dashed #D4B896;
+          border-radius: 12px;
+          background: #FAF7F2;
+          color: #78716C;
+          font-size: 14px;
+          cursor: pointer;
+          transition: border-color 0.2s;
+        }
+
+        .document-upload-zone:hover {
+          border-color: #C2614F;
         }
 
         .form-group input:focus,
@@ -728,12 +808,6 @@ export default function InscriptionPage() {
           padding: 8px;
         }
 
-        .pin-hint {
-          font-size: 12px;
-          color: #78716C;
-          margin-top: 6px;
-        }
-
         .submit-button {
           background: #C2614F;
           color: white;
@@ -802,12 +876,12 @@ export default function InscriptionPage() {
           .form-group {
             text-align: left;
           }
+          .form-row {
+            grid-template-columns: 1fr;
+          }
         }
 
         @media (max-width: 480px) {
-          .nounou-mode-selector {
-            flex-direction: column;
-          }
           .inscription-container {
             padding: 16px;
             border-radius: 20px;

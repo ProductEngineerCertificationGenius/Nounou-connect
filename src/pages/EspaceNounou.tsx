@@ -17,6 +17,10 @@ import {
   Edit2,
   Save,
   X,
+  Users,
+  Phone,
+  Briefcase,
+  Award,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useLogout } from "../hooks/useAuth";
@@ -57,13 +61,13 @@ import { getErrorMessage } from "../lib/errorHandler";
 //
 // Champs retirés (absents de notre schéma) : `prenom` (seul `nom`
 // existe), `competences` (seul `langues` existe), `verifiee` (pas de
-// colonne de vérification). `famillesAidees` est désormais un vrai
+// colonne de vérification). `menagesAidees` est désormais un vrai
 // compte (nombre de demandes assignées à elle avec statut='Assignée'),
 // pas un chiffre inventé.
 //
 // Ajout : onglet "Mes demandes" (n'existait pas du tout auparavant —
-// la nounou n'avait aucun moyen de voir les familles qui lui sont
-// assignées). S'appuie sur la policy RLS `demandes_select_nounou_assignee`
+// la nounou n'avait aucun moyen de voir les ménages qui lui sont
+// assignés). S'appuie sur la policy RLS `demandes_select_nounou_assignee`
 // et sur `menages_select_via_demande` (0007_calibrage_affichage.sql),
 // déjà posées côté base pour ce cas précis — seul l'écran manquait.
 // ================================================================
@@ -133,7 +137,7 @@ export default function EspaceNounou() {
     },
   });
 
-  const { data: nbFamillesAidees } = useQuery({
+  const { data: nbMenagesAidees } = useQuery({
     queryKey: ["demandes", "nounou", profil?.id, "count"],
     enabled: Boolean(profil?.id) && isSupabaseConfigured,
     queryFn: async () => {
@@ -163,16 +167,22 @@ export default function EspaceNounou() {
 
   const hasAgence = Boolean(profil?.agence_id);
 
-  // ===== AGENCES DU QUARTIER (nounou sans agence uniquement) =====
+  // ===== AGENCES DISPONIBLES (nounou sans agence uniquement) =====
+  // Filtre par commune ajouté (repris de la version de l'ami B) : "" =
+  // toutes les communes, sinon restreint à la commune choisie. NB : la
+  // version d'origine de B avait un bug ici — le choix "Toutes les
+  // communes" retombait silencieusement sur le quartier de la nounou
+  // au lieu de vraiment tout afficher. Corrigé ci-dessous.
+  const [filterQuartier, setFilterQuartier] = useState("");
   const { data: agencesQuartier } = useQuery({
-    queryKey: ["agences", "quartier", profil?.quartier],
+    queryKey: ["agences", "quartier", filterQuartier],
     enabled: Boolean(profil?.quartier) && isSupabaseConfigured && !hasAgence,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("agences_public")
-        .select("*")
-        .eq("quartier", profil!.quartier)
-        .order("note", { ascending: false });
+      let query = supabase.from("agences_public").select("*");
+      if (filterQuartier) {
+        query = query.eq("quartier", filterQuartier);
+      }
+      const { data, error } = await query.order("note", { ascending: false });
       if (error) throw error;
       return data as AgencePublique[];
     },
@@ -352,8 +362,8 @@ export default function EspaceNounou() {
             <span className="stat-label">Expérience</span>
           </div>
           <div className="stat-card">
-            <span className="stat-number">{nbFamillesAidees ?? 0}</span>
-            <span className="stat-label">Familles aidées</span>
+            <span className="stat-number">{nbMenagesAidees ?? 0}</span>
+            <span className="stat-label">Ménages aidés</span>
           </div>
           <div className="stat-card">
             <span className="stat-number">{(profil?.tarif ?? 0).toLocaleString()}</span>
@@ -527,13 +537,42 @@ export default function EspaceNounou() {
             </div>
           </form>
         ) : (
-          <div className="info-message">
-            <Building2 size={20} color="#C2614F" />
-            <p>
-              Vous n'êtes rattachée à aucune agence pour le moment. Contactez l'une des agences de{" "}
-              <strong>{profil?.quartier}</strong> ci-dessous pour rejoindre son vivier — une fois
-              ajoutée, votre profil sera géré par cette agence.
-            </p>
+          <div className="info-cards">
+            <div className="info-card">
+              <div className="info-card-icon"><Phone size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Téléphone</span>
+                <span className="info-card-value">{profil?.telephone || "—"}</span>
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-card-icon"><MapPin size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Quartier</span>
+                <span className="info-card-value">{profil?.quartier || "—"}</span>
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-card-icon"><Award size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Ethnie</span>
+                <span className="info-card-value">{profil?.ethnie || "Non renseignée"}</span>
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-card-icon"><Briefcase size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Expérience</span>
+                <span className="info-card-value">{profil?.experience || "Non renseigné"}</span>
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-card-icon"><Heart size={20} /></div>
+              <div className="info-card-content">
+                <span className="info-card-label">Tarif</span>
+                <span className="info-card-value">{profil?.tarif ? `${profil.tarif.toLocaleString()} FCFA` : "—"}</span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -556,42 +595,75 @@ export default function EspaceNounou() {
           </div>
         </section>
 
-        <section className="agences-section">
-          <h3 className="agences-section-title">🏢 Agences de {profil?.quartier}</h3>
-          <div className="agences-list">
-            {agences.map((agence) => (
-              <div key={agence.id} className="agence-card">
-                <div className="agence-card-avatar">
-                  {agence.photo_url ? <img src={agence.photo_url} alt={agence.nom} /> : <span>🏢</span>}
-                </div>
-                <div className="agence-card-info">
-                  <h4>{agence.nom}</h4>
-                  <div className="agence-card-meta">
-                    <span><MapPin size={12} /> {agence.quartier}</span>
-                    <span><Star size={12} fill="#F59E0B" color="#F59E0B" /> {agence.note || "—"}</span>
-                    <span>{agence.nbNounous} nounou{agence.nbNounous > 1 ? "s" : ""}</span>
-                  </div>
-                </div>
-                <button
-                  className="btn-contact-agence-small"
-                  onClick={() =>
-                    handleWhatsAppContact(
-                      agence.telephone,
-                      `Bonjour, je suis nounou et je souhaite rejoindre votre agence.\n\n👤 Nom: ${profil?.nom || "Nounou"}\n📱 Téléphone: ${profil?.telephone || "Non renseigné"}\n📍 Quartier: ${profil?.quartier || "Non renseigné"}\n\nPouvez-vous me donner plus d'informations sur votre agence ?`
-                    )
-                  }
-                >
-                  <MessageCircle size={16} /> Contacter
-                </button>
-              </div>
-            ))}
-            {agences.length === 0 && (
-              <p style={{ color: "#78716C", fontSize: 14 }}>
-                Aucune agence trouvée pour l'instant dans votre quartier.
-              </p>
-            )}
+        <div className="agences-scroll-section">
+          <div className="agences-scroll-header">
+            <div className="header-left">
+              <h3>🏢 Agences disponibles</h3>
+              <span className="agences-count">{agences.length} agence{agences.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="filter-group">
+              <label>Filtrer par commune :</label>
+              <select
+                value={filterQuartier || "toutes"}
+                onChange={(e) => setFilterQuartier(e.target.value === "toutes" ? "" : e.target.value)}
+                className="filter-select"
+              >
+                <option value="toutes">🌍 Toutes les communes</option>
+                {QUARTIERS.map((q) => (
+                  <option key={q} value={q}>{q}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        </section>
+
+          {agences.length > 0 ? (
+            <div className="agences-scroll-wrapper">
+              <div className="agences-scroll">
+                {agences.map((agence) => (
+                  <div key={agence.id} className="agence-scroll-card">
+                    <div className="agence-card-content">
+                      <div className="agence-avatar-small">
+                        {agence.photo_url ? (
+                          <img src={agence.photo_url} alt={agence.nom} />
+                        ) : (
+                          <div className="agence-placeholder-small">🏢</div>
+                        )}
+                      </div>
+                      <div className="agence-info-small">
+                        <h4>{agence.nom}</h4>
+                        <div className="agence-meta-small">
+                          <span><MapPin size={12} /> {agence.quartier}</span>
+                          <span><Users size={12} /> {agence.nbNounous}</span>
+                          <span><Star size={12} fill="#F59E0B" color="#F59E0B" /> {agence.note || "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="btn-whatsapp-small"
+                      onClick={() =>
+                        handleWhatsAppContact(
+                          agence.telephone,
+                          `Bonjour, je suis nounou et je souhaite rejoindre votre agence.\n\n👤 Nom: ${profil?.nom || "Nounou"}\n📱 Téléphone: ${profil?.telephone || "Non renseigné"}\n📍 Quartier: ${profil?.quartier || "Non renseigné"}\n\nPouvez-vous me donner plus d'informations sur votre agence ?`
+                        )
+                      }
+                    >
+                      <MessageCircle size={16} /> Contacter
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="empty-agences-scroll">
+              <Building2 size={40} />
+              <p>Aucune agence trouvée pour cette commune.</p>
+            </div>
+          )}
+
+          <div className="rejoindre-message">
+            <p>💡 <strong>Vous n'avez pas encore d'agence ?</strong> Contactez une des agences ci-dessus pour rejoindre leur vivier.</p>
+          </div>
+        </div>
 
         <button className="btn-logout" onClick={onLogout}><LogOut size={20} /> Se déconnecter</button>
       </>
@@ -601,14 +673,14 @@ export default function EspaceNounou() {
   const renderDemandes = () => (
     <section className="demandes-section">
       <h2 className="demandes-title">Mes demandes</h2>
-      <p className="demandes-subtitle">Familles pour lesquelles votre agence vous a assignée</p>
+      <p className="demandes-subtitle">Ménages pour lesquels votre agence vous a assignée</p>
       <div className="demandes-list">
         {(mesDemandes ?? []).map((d) => (
           <div key={d.id} className="demande-card">
             <div className="demande-card-header">
               <span className="demande-icon">{besoinLabels[d.besoin] || "📋"}</span>
               <div className="demande-content">
-                <h4>{d.menage?.nom || "Famille"}</h4>
+                <h4>{d.menage?.nom || "Ménage"}</h4>
                 <div className="demande-meta">
                   <span><MapPin size={12} /> {d.quartier}</span>
                   <span><Clock size={12} /> {d.temps}</span>
@@ -1146,6 +1218,298 @@ export default function EspaceNounou() {
 
         .info-message strong {
           color: #1C1917;
+        }
+
+        /* ============================================================ */
+        /* INFO CARDS (repris de la version de l'ami B)                 */
+        /* ============================================================ */
+        .info-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+
+        .info-card {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 14px 18px;
+          background: white;
+          border-radius: 14px;
+          border: 1px solid rgba(212, 184, 150, 0.08);
+          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.03);
+        }
+
+        .info-card-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: #F8EDEE;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #C2614F;
+          flex-shrink: 0;
+        }
+
+        .info-card-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .info-card-label {
+          display: block;
+          font-size: 11px;
+          font-weight: 600;
+          color: #78716C;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+
+        .info-card-value {
+          display: block;
+          font-size: 14px;
+          font-weight: 600;
+          color: #1C1917;
+          word-break: break-word;
+        }
+
+        /* ============================================================ */
+        /* AGENCES DISPONIBLES — scroll horizontal filtrable            */
+        /* ============================================================ */
+        .agences-scroll-section {
+          margin-top: 16px;
+          background: white;
+          border-radius: 16px;
+          padding: 16px 20px 20px;
+          border: 1px solid rgba(212, 184, 150, 0.08);
+          box-shadow: 0 2px 8px rgba(28, 25, 23, 0.03);
+        }
+
+        .agences-scroll-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 14px;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .agences-scroll-header .header-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .agences-scroll-header h3 {
+          font-size: 17px;
+          font-weight: 700;
+          color: #1C1917;
+          margin: 0;
+        }
+
+        .agences-count {
+          font-size: 12px;
+          color: #78716C;
+          background: #F5F0EB;
+          padding: 2px 12px;
+          border-radius: 50px;
+          font-weight: 500;
+        }
+
+        .filter-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .filter-group label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #78716C;
+        }
+
+        .filter-select {
+          padding: 6px 12px;
+          border: 2px solid #F2D6D8;
+          border-radius: 10px;
+          font-size: 13px;
+          background: #FAF7F2;
+          color: #1C1917;
+          outline: none;
+          cursor: pointer;
+          font-family: inherit;
+          transition: all 0.25s ease;
+        }
+
+        .filter-select:focus {
+          border-color: #C2614F;
+          background: white;
+          box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.06);
+        }
+
+        .agences-scroll-wrapper {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .agences-scroll {
+          display: flex;
+          gap: 14px;
+          overflow-x: auto;
+          padding: 4px 0 12px;
+          scroll-behavior: smooth;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .agences-scroll::-webkit-scrollbar {
+          height: 4px;
+        }
+
+        .agences-scroll::-webkit-scrollbar-track {
+          background: #F5F0EB;
+          border-radius: 10px;
+        }
+
+        .agences-scroll::-webkit-scrollbar-thumb {
+          background: #D4B896;
+          border-radius: 10px;
+        }
+
+        .agence-scroll-card {
+          flex: 0 0 260px;
+          background: #FAF7F2;
+          border-radius: 14px;
+          padding: 14px 16px 16px;
+          border: 1px solid rgba(212, 184, 150, 0.1);
+          scroll-snap-align: start;
+          transition: all 0.3s ease;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+
+        .agence-scroll-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 8px 24px rgba(28, 25, 23, 0.08);
+          border-color: rgba(194, 97, 79, 0.15);
+        }
+
+        .agence-card-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          margin-bottom: 10px;
+        }
+
+        .agence-avatar-small {
+          flex-shrink: 0;
+          margin-bottom: 8px;
+        }
+
+        .agence-avatar-small img {
+          width: 52px;
+          height: 52px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 2px solid #F5F0EB;
+        }
+
+        .agence-placeholder-small {
+          width: 52px;
+          height: 52px;
+          border-radius: 50%;
+          background: #F2D6D8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 22px;
+        }
+
+        .agence-info-small h4 {
+          font-size: 15px;
+          font-weight: 700;
+          color: #1C1917;
+          margin: 0 0 4px 0;
+        }
+
+        .agence-meta-small {
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+          font-size: 11px;
+          color: #78716C;
+          flex-wrap: wrap;
+        }
+
+        .agence-meta-small span {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+        }
+
+        .btn-whatsapp-small {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: 100%;
+          padding: 8px 12px;
+          background: #25D366;
+          color: white;
+          border: none;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.25s ease;
+        }
+
+        .btn-whatsapp-small:hover {
+          background: #1EBE5E;
+          transform: scale(1.02);
+        }
+
+        .empty-agences-scroll {
+          text-align: center;
+          padding: 30px 20px;
+          color: #78716C;
+        }
+
+        .empty-agences-scroll svg {
+          color: #D4B896;
+          margin-bottom: 8px;
+        }
+
+        .rejoindre-message {
+          margin-top: 14px;
+          padding: 12px 16px;
+          background: #FEF3C7;
+          border-radius: 12px;
+          border: 1px solid #F59E0B;
+          text-align: center;
+          font-size: 13px;
+          color: #92400E;
+        }
+
+        .rejoindre-message strong {
+          color: #1C1917;
+        }
+
+        @media (max-width: 480px) {
+          .info-cards {
+            grid-template-columns: 1fr;
+          }
+          .agences-scroll-header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .agence-scroll-card {
+            flex: 0 0 220px;
+          }
         }
 
         .agences-section {
