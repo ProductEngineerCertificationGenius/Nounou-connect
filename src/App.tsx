@@ -10,6 +10,9 @@ import EspaceMenage from "./pages/EspaceMenage";
 import EspaceAgence from "./pages/EspaceAgence";
 import EspaceNounou from "./pages/EspaceNounou";
 import { useAuthStore, type ProfileType } from "./store/useAuthStore";
+import AProposPage from "./pages/AProposPage";
+import ConditionsPage from "./pages/ConditionsPage";
+import ConfidentialitePage from "./pages/ConfidentialitePage";
 
 // ================================================================
 // Réécriture complète : l'original gérait la navigation avec un simple
@@ -45,9 +48,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/inscription" element={<InscriptionPage />} />
       <Route path="/connexion" element={<ConnexionPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/aide" element={<AidePage />} />
-      <Route path="/a-propos" element={<AProposPage />} />
+
 
       <Route
         path="/espace-menage"
