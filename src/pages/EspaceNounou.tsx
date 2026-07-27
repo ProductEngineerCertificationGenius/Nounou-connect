@@ -1,5 +1,5 @@
 // src/pages/EspaceNounou.tsx
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   User,
@@ -27,6 +27,7 @@ import { useLogout } from "../hooks/useAuth";
 import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { getErrorMessage } from "../lib/errorHandler";
+import { useMesDemandesAffiliation, useEnvoyerDemandeAffiliation } from "../hooks/useAffiliation";
 
 // ================================================================
 // Réécriture complète, branchée sur la table réelle `nounous`.
@@ -67,7 +68,7 @@ import { getErrorMessage } from "../lib/errorHandler";
 //
 // Ajout : onglet "Mes demandes" (n'existait pas du tout auparavant —
 // la nounou n'avait aucun moyen de voir les ménages qui lui sont
-// assignés). S'appuie sur la policy RLS `demandes_select_nounou_assignee`
+// assignées). S'appuie sur la policy RLS `demandes_select_nounou_assignee`
 // et sur `menages_select_via_demande` (0007_calibrage_affichage.sql),
 // déjà posées côté base pour ce cas précis — seul l'écran manquait.
 // ================================================================
@@ -167,6 +168,22 @@ export default function EspaceNounou() {
 
   const hasAgence = Boolean(profil?.agence_id);
 
+  // ===== DEMANDES D'AFFILIATION ENVOYÉES (nounou sans agence) =====
+  const { data: mesDemandesAffiliation } = useMesDemandesAffiliation(profil?.id);
+  const envoyerDemande = useEnvoyerDemandeAffiliation();
+
+  // Dès qu'une demande passe à "acceptee" (détecté par le polling de
+  // useMesDemandesAffiliation), on recharge le profil : agence_id vient
+  // d'être renseigné côté serveur, donc `hasAgence` devient vrai et le
+  // tableau de bord bascule automatiquement vers la vue "avec agence",
+  // sans que la nounou ait à recharger la page elle-même.
+  const demandeVientDetreAcceptee = mesDemandesAffiliation?.some((d) => d.statut === "acceptee");
+  useEffect(() => {
+    if (demandeVientDetreAcceptee && !hasAgence) {
+      queryClient.invalidateQueries({ queryKey: ["nounou", "profil", currentUser?.user_id] });
+    }
+  }, [demandeVientDetreAcceptee, hasAgence, queryClient, currentUser?.user_id]);
+
   // ===== AGENCES DISPONIBLES (nounou sans agence uniquement) =====
   // Filtre par commune ajouté (repris de la version de l'ami B) : "" =
   // toutes les communes, sinon restreint à la commune choisie. NB : la
@@ -187,12 +204,6 @@ export default function EspaceNounou() {
       return data as AgencePublique[];
     },
   });
-
-  const handleWhatsAppContact = (telephone: string, message?: string) => {
-    const cleanPhone = telephone.replace(/[^0-9]/g, "");
-    const encodedMessage = message ? encodeURIComponent(message) : "";
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank");
-  };
 
   // ===== ÉDITION DU PROFIL (nounou sans agence uniquement) =====
   // Autorisée par la policy RLS `nounous_update_self` (migration 0012)
@@ -576,25 +587,6 @@ export default function EspaceNounou() {
           </div>
         )}
 
-        <section className="statut-section">
-          <div className="statut-card">
-            <div className="statut-info">
-              <span className="statut-icon">
-                {profil?.disponible ? <CheckCircle size={24} /> : <Clock size={24} />}
-              </span>
-              <div>
-                <span className="statut-label">Mon statut</span>
-                <span className={`statut-value ${profil?.disponible ? "disponible" : "indisponible"}`}>
-                  {profil?.disponible ? "✅ Disponible" : "❌ Indisponible"}
-                </span>
-              </div>
-            </div>
-            <button className="btn-toggle-statut" onClick={() => toggleDisponible.mutate()} disabled={toggleDisponible.isPending}>
-              {toggleDisponible.isPending ? "..." : profil?.disponible ? "Marquer indisponible" : "Marquer disponible"}
-            </button>
-          </div>
-        </section>
-
         <div className="agences-scroll-section">
           <div className="agences-scroll-header">
             <div className="header-left">
@@ -619,38 +611,60 @@ export default function EspaceNounou() {
           {agences.length > 0 ? (
             <div className="agences-scroll-wrapper">
               <div className="agences-scroll">
-                {agences.map((agence) => (
-                  <div key={agence.id} className="agence-scroll-card">
-                    <div className="agence-card-content">
-                      <div className="agence-avatar-small">
-                        {agence.photo_url ? (
-                          <img src={agence.photo_url} alt={agence.nom} />
-                        ) : (
-                          <div className="agence-placeholder-small">🏢</div>
-                        )}
-                      </div>
-                      <div className="agence-info-small">
-                        <h4>{agence.nom}</h4>
-                        <div className="agence-meta-small">
-                          <span><MapPin size={12} /> {agence.quartier}</span>
-                          <span><Users size={12} /> {agence.nbNounous}</span>
-                          <span><Star size={12} fill="#F59E0B" color="#F59E0B" /> {agence.note || "—"}</span>
+                {agences.map((agence) => {
+                  const demande = mesDemandesAffiliation?.find((d) => d.agence_id === agence.id);
+                  return (
+                    <div key={agence.id} className="agence-scroll-card">
+                      <div className="agence-card-content">
+                        <div className="agence-avatar-small">
+                          {agence.photo_url ? (
+                            <img src={agence.photo_url} alt={agence.nom} />
+                          ) : (
+                            <div className="agence-placeholder-small">🏢</div>
+                          )}
+                        </div>
+                        <div className="agence-info-small">
+                          <h4>{agence.nom}</h4>
+                          <div className="agence-meta-small">
+                            <span><MapPin size={12} /> {agence.quartier}</span>
+                            <span><Users size={12} /> {agence.nbNounous}</span>
+                            <span><Star size={12} fill="#F59E0B" color="#F59E0B" /> {agence.note || "—"}</span>
+                          </div>
                         </div>
                       </div>
+
+                      {demande?.statut === "en_attente" && (
+                        <div className="affiliation-badge en-attente">
+                          <Clock size={14} /> Demande envoyée, en attente de réponse
+                        </div>
+                      )}
+                      {demande?.statut === "acceptee" && (
+                        <div className="affiliation-badge acceptee">
+                          <CheckCircle size={14} /> Demande acceptée ! Mise à jour de votre espace...
+                        </div>
+                      )}
+                      {demande?.statut === "refusee" && (
+                        <div className="affiliation-badge refusee">
+                          ❌ Demande refusée par cette agence
+                        </div>
+                      )}
+
+                      {!demande && (
+                        <button
+                          className="btn-whatsapp-small"
+                          disabled={envoyerDemande.isPending}
+                          onClick={() => {
+                            if (!profil?.id) return;
+                            envoyerDemande.mutate({ nounouId: profil.id, agenceId: agence.id });
+                          }}
+                        >
+                          <MessageCircle size={16} />
+                          {envoyerDemande.isPending ? "Envoi..." : "Envoyer une demande"}
+                        </button>
+                      )}
                     </div>
-                    <button
-                      className="btn-whatsapp-small"
-                      onClick={() =>
-                        handleWhatsAppContact(
-                          agence.telephone,
-                          `Bonjour, je suis nounou et je souhaite rejoindre votre agence.\n\n👤 Nom: ${profil?.nom || "Nounou"}\n📱 Téléphone: ${profil?.telephone || "Non renseigné"}\n📍 Quartier: ${profil?.quartier || "Non renseigné"}\n\nPouvez-vous me donner plus d'informations sur votre agence ?`
-                        )
-                      }
-                    >
-                      <MessageCircle size={16} /> Contacter
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -673,7 +687,7 @@ export default function EspaceNounou() {
   const renderDemandes = () => (
     <section className="demandes-section">
       <h2 className="demandes-title">Mes demandes</h2>
-      <p className="demandes-subtitle">Ménages pour lesquels votre agence vous a assignée</p>
+      <p className="demandes-subtitle">Ménages pour lesquelles votre agence vous a assignée</p>
       <div className="demandes-list">
         {(mesDemandes ?? []).map((d) => (
           <div key={d.id} className="demande-card">
@@ -1449,6 +1463,34 @@ export default function EspaceNounou() {
           display: flex;
           align-items: center;
           gap: 3px;
+        }
+
+        .affiliation-badge {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: 100%;
+          padding: 8px 10px;
+          border-radius: 10px;
+          font-size: 12px;
+          font-weight: 600;
+          text-align: center;
+        }
+
+        .affiliation-badge.en-attente {
+          background: #FEF3C7;
+          color: #92400E;
+        }
+
+        .affiliation-badge.acceptee {
+          background: #DCFCE7;
+          color: #166534;
+        }
+
+        .affiliation-badge.refusee {
+          background: #FEE2E2;
+          color: #991B1B;
         }
 
         .btn-whatsapp-small {

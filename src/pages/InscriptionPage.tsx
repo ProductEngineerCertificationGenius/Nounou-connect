@@ -66,10 +66,8 @@ export default function InscriptionPage() {
     telephone: "",
     quartier: "",
     ethnie: "",
-    // Nouveau champ repris de cprincess. Pas encore persisté : ni
-    // useInscription, ni nounou_self_register, ni la table `nounous`
-    // ne savent quoi en faire pour l'instant (cf. modifications
-    // restantes signalées en fin de réponse).
+    // Champ repris de cprincess, transmis à nounou_self_register
+    // (cf. migration 0016_nounou_self_register_experience.sql).
     experience: "",
     email: "",
     description: "",
@@ -166,6 +164,7 @@ export default function InscriptionPage() {
               nom: `${formData.prenom} ${formData.nom}`.trim(),
               quartier: formData.quartier,
               ethnie: formData.ethnie || undefined,
+              experience: formData.experience || undefined,
             }
           : undefined,
       });
@@ -385,10 +384,8 @@ export default function InscriptionPage() {
                     onChange={handleChange}
                   />
                 </div>
-                {/* Repris de cprincess, laissé optionnel : ce champ n'est
-                    pas encore envoyé à nounou_self_register (cf. modifications
-                    restantes) — le rendre obligatoire ici bloquerait
-                    l'inscription pour rien tant que le backend ne le stocke pas. */}
+                {/* Repris de cprincess, laissé optionnel : si vide, le
+                    backend (nounou_self_register) stocke 'Non renseigné'. */}
                 <div className="form-group">
                   <label>Expérience professionnelle <span className="optional">(optionnel)</span></label>
                   <textarea
@@ -485,6 +482,9 @@ export default function InscriptionPage() {
                   {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              <p className="pin-hint">
+                💡 Ce PIN vous servira à vous reconnecter directement, sans recevoir de SMS à chaque fois.
+              </p>
             </div>
 
             <button type="submit" className="submit-button" disabled={inscription.isPending || uploadDocument.isPending}>
@@ -806,6 +806,12 @@ export default function InscriptionPage() {
           color: #78716C;
           cursor: pointer;
           padding: 8px;
+        }
+
+        .pin-hint {
+          font-size: 12px;
+          color: #78716C;
+          margin-top: 6px;
         }
 
         .submit-button {

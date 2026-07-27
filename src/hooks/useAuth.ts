@@ -31,7 +31,7 @@ async function fetchOrClaimProfile(
   // 0012_nounou_self_insert.sql) : si fourni, on crée/récupère la
   // fiche via nounou_self_register plutôt que via claim_nounou_profile,
   // qui lui suppose une fiche déjà créée par une agence.
-  nounouSelfRegister?: { telephone: string; nom: string; quartier: string; ethnie?: string }
+  nounouSelfRegister?: { telephone: string; nom: string; quartier: string; ethnie?: string; experience?: string }
 ): Promise<ProfileRow | null> {
   if (profileType === "nounou") {
     if (nounouSelfRegister) {
@@ -40,6 +40,7 @@ async function fetchOrClaimProfile(
         p_nom: nounouSelfRegister.nom,
         p_quartier: nounouSelfRegister.quartier,
         p_ethnie: nounouSelfRegister.ethnie ?? null,
+        p_experience: nounouSelfRegister.experience ?? null,
       });
       if (error) throw error;
       return data?.id ? data : null;
@@ -78,12 +79,12 @@ export function useInscription() {
       // migration 0012). Si absent pour profileType === "nounou", on
       // garde le comportement existant : rattachement à une fiche déjà
       // créée par une agence via claim_nounou_profile.
-      nounouSelfRegister?: { nom: string; quartier: string; ethnie?: string };
+      nounouSelfRegister?: { nom: string; quartier: string; ethnie?: string; experience?: string };
     }) => {
       const normalizedPhone = normalizePhoneCI(phone);
       const nounouSelfRegisterPayload =
         profileType === "nounou" && nounouSelfRegister
-          ? { telephone: normalizedPhone, nom: nounouSelfRegister.nom, quartier: nounouSelfRegister.quartier, ethnie: nounouSelfRegister.ethnie }
+          ? { telephone: normalizedPhone, nom: nounouSelfRegister.nom, quartier: nounouSelfRegister.quartier, ethnie: nounouSelfRegister.ethnie, experience: nounouSelfRegister.experience }
           : undefined;
       console.log("[useInscription] Début inscription:", { normalizedPhone, profileType, isSupabaseConfigured });
       
@@ -240,6 +241,11 @@ export function useInscription() {
 }
 
 // ===== CONNEXION PAR PIN (remplace l'OTP à chaque connexion) =====
+// Depuis le retrait du mode "J'ai une agence" sur la page Inscription
+// (cf. commentaire dans InscriptionPage.tsx), c'est ICI que se joue
+// l'activation d'une nounou déjà créée par une agence : si le login
+// classique échoue, on tente une 1ère activation (signUp + rattachement
+// via claim_nounou_profile) avant de conclure à un vrai échec.
 export function useConnexion() {
   const { setUser, setProfileType } = useAuthStore();
 
@@ -260,7 +266,33 @@ export function useConnexion() {
         phone: normalizedPhone,
         password: pinToPassword(pin),
       });
-      if (error) throw new Error("Téléphone ou PIN incorrect.");
+
+      if (error) {
+        // Uniquement pour une nounou : le compte Auth peut ne pas encore
+        // exister (fiche créée par une agence, jamais activée). On tente
+        // de le créer ; si Supabase répond "déjà inscrit", c'est que le
+        // compte existe réellement -> le PIN saisi était juste faux.
+        if (profileType === "nounou") {
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            phone: normalizedPhone,
+            password: pinToPassword(pin),
+          });
+          if (signUpError || !signUpData.user) {
+            throw new Error("Téléphone ou PIN incorrect.");
+          }
+          if (signUpData.session) {
+            await supabase.auth.setSession(signUpData.session);
+          }
+          const row = await fetchOrClaimProfile("nounou", signUpData.user.id);
+          if (!row) {
+            throw new Error(
+              "Aucune fiche nounou ne correspond à ce numéro. Vérifiez que votre agence a bien renseigné exactement ce numéro, ou inscrivez-vous si vous n'avez pas d'agence."
+            );
+          }
+          return { row, profileType };
+        }
+        throw new Error("Téléphone ou PIN incorrect.");
+      }
 
       const row = await fetchOrClaimProfile(profileType, authData.user!.id);
       if (!row) {
