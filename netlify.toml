@@ -1,0 +1,12 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Redirection SPA : toute route non trouvée sur le CDN Netlify (ex:
+# /inscription, /connexion, /espace-nounou, rafraîchissement de page,
+# lien direct) doit être servie par index.html pour laisser
+# react-router-dom (BrowserRouter) gérer le routing côté client.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
