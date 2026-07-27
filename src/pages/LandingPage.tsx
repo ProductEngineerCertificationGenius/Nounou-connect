@@ -740,7 +740,17 @@ export default function LandingPage() {
                 }}
               >
                 <p style={{ fontSize: 15, color: "#78716C", fontStyle: "italic" }}>
-                  ✏️ Vous avez trouvé une nounou ? <a href="#" style={{ color: "#4A7C59", fontWeight: 700 }}>Donnez votre avis</a>
+                  ✏️ Vous avez trouvé une nounou ?{" "}
+                  <a
+                    href={`https://wa.me/2250152242299?text=${encodeURIComponent(
+                      "Bonjour, je souhaite laisser un avis sur la nounou/agence qui m'a accompagné(e) via Nounou Connect."
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: "#4A7C59", fontWeight: 700 }}
+                  >
+                    Donnez votre avis
+                  </a>
                 </p>
               </div>
             </FadeUp>
@@ -908,11 +918,20 @@ export default function LandingPage() {
                 La plateforme de mise en relation entre ménages, agences de placement et nounous professionnelles à Abidjan.
               </p>
               <div style={{ marginTop: 12, display: "flex", justifyContent: "center", gap: 16 }}>
-                {["Instagram", "Facebook", "WhatsApp"].map((s) => (
-                  <a key={s} href="#" style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", textDecoration: "none", transition: "color 0.2s" }}
+                {[
+                  { label: "Instagram", href: "#" },
+                  { label: "Facebook", href: "#" },
+                  { label: "WhatsApp", href: "https://wa.me/2250152242299" },
+                ].map((s) => (
+                  <a
+                    key={s.label}
+                    href={s.href}
+                    target={s.href !== "#" ? "_blank" : undefined}
+                    rel={s.href !== "#" ? "noreferrer" : undefined}
+                    style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", textDecoration: "none", transition: "color 0.2s" }}
                     onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
-                  >{s}</a>
+                  >{s.label}</a>
                 ))}
               </div>
             </div>
