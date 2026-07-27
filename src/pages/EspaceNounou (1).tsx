@@ -27,7 +27,6 @@ import { useLogout } from "../hooks/useAuth";
 import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { getErrorMessage } from "../lib/errorHandler";
-import { useMesDemandesAffiliation, useEnvoyerDemandeAffiliation } from "../hooks/useAffiliation";
 
 // ================================================================
 // Réécriture complète, branchée sur la table réelle `nounous`.
@@ -167,10 +166,6 @@ export default function EspaceNounou() {
   });
 
   const hasAgence = Boolean(profil?.agence_id);
-
-  // ===== DEMANDES D'AFFILIATION ENVOYÉES (nounou sans agence) =====
-  const { data: mesDemandesAffiliation } = useMesDemandesAffiliation(profil?.id);
-  const envoyerDemande = useEnvoyerDemandeAffiliation();
 
   // ===== AGENCES DISPONIBLES (nounou sans agence uniquement) =====
   // Filtre par commune ajouté (repris de la version de l'ami B) : "" =
@@ -605,64 +600,38 @@ export default function EspaceNounou() {
           {agences.length > 0 ? (
             <div className="agences-scroll-wrapper">
               <div className="agences-scroll">
-                {agences.map((agence) => {
-                  const demande = mesDemandesAffiliation?.find((d) => d.agence_id === agence.id);
-                  return (
-                    <div key={agence.id} className="agence-scroll-card">
-                      <div className="agence-card-content">
-                        <div className="agence-avatar-small">
-                          {agence.photo_url ? (
-                            <img src={agence.photo_url} alt={agence.nom} />
-                          ) : (
-                            <div className="agence-placeholder-small">🏢</div>
-                          )}
-                        </div>
-                        <div className="agence-info-small">
-                          <h4>{agence.nom}</h4>
-                          <div className="agence-meta-small">
-                            <span><MapPin size={12} /> {agence.quartier}</span>
-                            <span><Users size={12} /> {agence.nbNounous}</span>
-                            <span><Star size={12} fill="#F59E0B" color="#F59E0B" /> {agence.note || "—"}</span>
-                          </div>
+                {agences.map((agence) => (
+                  <div key={agence.id} className="agence-scroll-card">
+                    <div className="agence-card-content">
+                      <div className="agence-avatar-small">
+                        {agence.photo_url ? (
+                          <img src={agence.photo_url} alt={agence.nom} />
+                        ) : (
+                          <div className="agence-placeholder-small">🏢</div>
+                        )}
+                      </div>
+                      <div className="agence-info-small">
+                        <h4>{agence.nom}</h4>
+                        <div className="agence-meta-small">
+                          <span><MapPin size={12} /> {agence.quartier}</span>
+                          <span><Users size={12} /> {agence.nbNounous}</span>
+                          <span><Star size={12} fill="#F59E0B" color="#F59E0B" /> {agence.note || "—"}</span>
                         </div>
                       </div>
-
-                      {demande?.statut === "en_attente" && (
-                        <div className="affiliation-badge en-attente">
-                          <Clock size={14} /> Demande envoyée, en attente de réponse
-                        </div>
-                      )}
-                      {demande?.statut === "acceptee" && (
-                        <div className="affiliation-badge acceptee">
-                          <CheckCircle size={14} /> Demande acceptée ! Rechargez la page.
-                        </div>
-                      )}
-                      {demande?.statut === "refusee" && (
-                        <div className="affiliation-badge refusee">
-                          ❌ Demande refusée par cette agence
-                        </div>
-                      )}
-
-                      {!demande && (
-                        <button
-                          className="btn-whatsapp-small"
-                          disabled={envoyerDemande.isPending}
-                          onClick={() => {
-                            if (!profil?.id) return;
-                            envoyerDemande.mutate({ nounouId: profil.id, agenceId: agence.id });
-                            handleWhatsAppContact(
-                              agence.telephone,
-                              `Bonjour, je suis nounou et je souhaite rejoindre votre agence.\n\n👤 Nom: ${profil?.nom || "Nounou"}\n📱 Téléphone: ${profil?.telephone || "Non renseigné"}\n📍 Quartier: ${profil?.quartier || "Non renseigné"}\n\nJe viens de vous envoyer une demande d'affiliation depuis l'application, pouvez-vous me donner plus d'informations ?`
-                            );
-                          }}
-                        >
-                          <MessageCircle size={16} />
-                          {envoyerDemande.isPending ? "Envoi..." : "Envoyer une demande"}
-                        </button>
-                      )}
                     </div>
-                  );
-                })}
+                    <button
+                      className="btn-whatsapp-small"
+                      onClick={() =>
+                        handleWhatsAppContact(
+                          agence.telephone,
+                          `Bonjour, je suis nounou et je souhaite rejoindre votre agence.\n\n👤 Nom: ${profil?.nom || "Nounou"}\n📱 Téléphone: ${profil?.telephone || "Non renseigné"}\n📍 Quartier: ${profil?.quartier || "Non renseigné"}\n\nPouvez-vous me donner plus d'informations sur votre agence ?`
+                        )
+                      }
+                    >
+                      <MessageCircle size={16} /> Contacter
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
@@ -1461,34 +1430,6 @@ export default function EspaceNounou() {
           display: flex;
           align-items: center;
           gap: 3px;
-        }
-
-        .affiliation-badge {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          width: 100%;
-          padding: 8px 10px;
-          border-radius: 10px;
-          font-size: 12px;
-          font-weight: 600;
-          text-align: center;
-        }
-
-        .affiliation-badge.en-attente {
-          background: #FEF3C7;
-          color: #92400E;
-        }
-
-        .affiliation-badge.acceptee {
-          background: #DCFCE7;
-          color: #166534;
-        }
-
-        .affiliation-badge.refusee {
-          background: #FEE2E2;
-          color: #991B1B;
         }
 
         .btn-whatsapp-small {

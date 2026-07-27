@@ -17,6 +17,7 @@ import { Logo } from "../components/Logo";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { getErrorMessage } from "../lib/errorHandler";
 import { normalizePhoneCI } from "../lib/phone";
+import { useDemandesAffiliationAgence, useRepondreDemandeAffiliation } from "../hooks/useAffiliation";
 
 // ================================================================
 // Réécriture complète, branchée sur la table réelle `nounous`.
@@ -332,6 +333,11 @@ export default function GestionNounous({ agenceId, onBack }: { agenceId?: string
     },
   });
 
+  // ===== DEMANDES D'AFFILIATION REÇUES (nounous sans agence) =====
+  const { data: demandesAffiliation } = useDemandesAffiliationAgence(agenceId);
+  const repondreAffiliation = useRepondreDemandeAffiliation();
+  const demandesEnAttente = (demandesAffiliation ?? []).filter((d) => d.statut === "en_attente");
+
   const toggleDisponible = useMutation({
     mutationFn: async (nounou: Nounou) => {
       const { error } = await supabase
@@ -366,6 +372,43 @@ export default function GestionNounous({ agenceId, onBack }: { agenceId?: string
         </div>
         <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Ajouter</button>
       </div>
+
+      {demandesEnAttente.length > 0 && (
+        <div className="affiliation-requests">
+          <h3>📨 Demandes d'affiliation ({demandesEnAttente.length})</h3>
+          <div className="affiliation-requests-list">
+            {demandesEnAttente.map((demande) => (
+              <div key={demande.id} className="affiliation-request-card">
+                <div className="affiliation-request-info">
+                  <User size={18} />
+                  <div>
+                    <strong>{demande.nounou?.nom || "Nounou"}</strong>
+                    <span>
+                      <MapPin size={12} /> {demande.nounou?.quartier || "—"} · {demande.nounou?.telephone || "—"}
+                    </span>
+                  </div>
+                </div>
+                <div className="affiliation-request-actions">
+                  <button
+                    className="btn-refuser"
+                    disabled={repondreAffiliation.isPending}
+                    onClick={() => repondreAffiliation.mutate({ demandeId: demande.id, accepter: false })}
+                  >
+                    Refuser
+                  </button>
+                  <button
+                    className="btn-accepter"
+                    disabled={repondreAffiliation.isPending}
+                    onClick={() => repondreAffiliation.mutate({ demandeId: demande.id, accepter: true })}
+                  >
+                    Accepter
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="search-filters">
         <div className="search-bar">
@@ -408,6 +451,82 @@ export default function GestionNounous({ agenceId, onBack }: { agenceId?: string
         /* HEADER                                                       */
         /* ============================================================ */
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+
+        .affiliation-requests {
+          background: #FEF3C7;
+          border: 1px solid #F59E0B;
+          border-radius: 16px;
+          padding: 16px 20px;
+          margin-bottom: 20px;
+        }
+
+        .affiliation-requests h3 {
+          font-size: 15px;
+          font-weight: 700;
+          color: #92400E;
+          margin: 0 0 12px 0;
+        }
+
+        .affiliation-requests-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .affiliation-request-card {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          background: white;
+          border-radius: 12px;
+          padding: 10px 14px;
+          flex-wrap: wrap;
+        }
+
+        .affiliation-request-info {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: #1C1917;
+        }
+
+        .affiliation-request-info strong {
+          display: block;
+          font-size: 14px;
+        }
+
+        .affiliation-request-info span {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 12px;
+          color: #78716C;
+        }
+
+        .affiliation-request-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .btn-accepter, .btn-refuser {
+          padding: 6px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          border: none;
+        }
+
+        .btn-accepter {
+          background: #4A7C59;
+          color: white;
+        }
+
+        .btn-refuser {
+          background: #F5F0EB;
+          color: #78716C;
+        }
         .header-left { display: flex; align-items: center; gap: 10px; }
         .btn-back { background: transparent; border: none; color: #78716C; cursor: pointer; padding: 4px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
         .btn-back:hover { background: #F2D6D8; color: #C2614F; }

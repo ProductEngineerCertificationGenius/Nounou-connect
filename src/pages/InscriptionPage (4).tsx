@@ -56,10 +56,15 @@ export default function InscriptionPage() {
 
   const [profil, setProfil] = useState<ProfileType | null>(initialProfil);
   const [screen, setScreen] = useState<"choix" | "form">(initialProfil ? "form" : "choix");
+  // Choix propre au profil nounou (feature reprise de feature-noah) :
+  // "avec-agence" garde le parcours d'activation existant (fiche déjà
+  // créée par une agence, rattachée via claim_nounou_profile) ;
+  // "sans-agence" est la nouvelle auto-inscription (nounou_self_register,
+  // cf. migration 0012_nounou_self_insert.sql).
+  const [nounouMode, setNounouMode] = useState<"avec-agence" | "sans-agence" | null>(null);
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
   const [formData, setFormData] = useState({
-    prenom: "",
     nom: "",
     telephone: "",
     quartier: "",
@@ -116,11 +121,11 @@ export default function InscriptionPage() {
       setServerError("Veuillez sélectionner un profil.");
       return;
     }
-    // La page Inscription ne gère plus que l'auto-inscription nounou
-    // (profil sans agence). Le cas "nounou déjà créée par une agence,
-    // qui doit activer son compte" est géré depuis la page Connexion
-    // (1ère connexion = activation automatique), plus depuis ici.
-    const isSelfRegisterNounou = profil === "nounou";
+    const isSelfRegisterNounou = profil === "nounou" && nounouMode === "sans-agence";
+    if (profil === "nounou" && !nounouMode) {
+      setServerError("Veuillez indiquer si vous avez déjà une agence.");
+      return;
+    }
     if (!validatePhoneNumber(formData.telephone)) {
       setPhoneError("Numéro invalide. Utilisez un format 07 XX XX XX XX");
       return;
@@ -133,12 +138,8 @@ export default function InscriptionPage() {
       setServerError("Veuillez sélectionner votre quartier.");
       return;
     }
-    if (isSelfRegisterNounou && (!formData.prenom || !formData.nom)) {
-      setServerError("Veuillez remplir votre prénom et votre nom.");
-      return;
-    }
-    if (profil === "menage" && (!formData.prenom || !formData.nom)) {
-      setServerError("Veuillez remplir votre prénom et votre nom.");
+    if (isSelfRegisterNounou && !formData.nom) {
+      setServerError("Veuillez remplir votre prénom et nom.");
       return;
     }
     if (profil === "agence") {
@@ -153,10 +154,6 @@ export default function InscriptionPage() {
       }
     }
 
-    // Nom complet (prénom + nom) pour ménage et nounou. L'agence n'a
-    // qu'un seul champ (nom de l'agence), pas de prénom.
-    const nomComplet = `${formData.prenom} ${formData.nom}`.trim();
-
     try {
       const result = await inscription.mutateAsync({
         phone: formData.telephone,
@@ -165,13 +162,9 @@ export default function InscriptionPage() {
         pendingProfile:
           profil === "nounou"
             ? undefined
-            : {
-                nom: profil === "agence" ? formData.nom : nomComplet,
-                telephone: formData.telephone,
-                quartier: formData.quartier,
-              },
+            : { nom: formData.nom, telephone: formData.telephone, quartier: formData.quartier },
         nounouSelfRegister: isSelfRegisterNounou
-          ? { nom: nomComplet, quartier: formData.quartier, ethnie: formData.ethnie || undefined }
+          ? { nom: formData.nom, quartier: formData.quartier, ethnie: formData.ethnie || undefined }
           : undefined,
       });
       if (result.row) {
@@ -202,6 +195,7 @@ export default function InscriptionPage() {
 
   const resetProfil = () => {
     setProfil(null);
+    setNounouMode(null);
     setScreen("choix");
   };
 
@@ -252,11 +246,8 @@ export default function InscriptionPage() {
     const isAgence = profil === "agence";
     const isMenage = profil === "menage";
     const isNounou = profil === "nounou";
-    // La page Inscription ne gère plus que l'auto-inscription nounou.
-    // Le cas "nounou déjà créée par une agence" est géré depuis la page
-    // Connexion (activation automatique au premier login).
-    const isSelfRegisterNounou = isNounou;
-    const showNomQuartier = true;
+    const isSelfRegisterNounou = isNounou && nounouMode === "sans-agence";
+    const showNomQuartier = !isNounou || isSelfRegisterNounou;
 
     return (
       <div className="inscription-grid">
@@ -271,59 +262,59 @@ export default function InscriptionPage() {
           <h2 className="form-title">
             {isMenage && "Créer mon compte (Famille)"}
             {isAgence && "Créer mon compte (Agence)"}
-            {isNounou && "Créer mon compte (Nounou)"}
+            {isNounou && isSelfRegisterNounou && "Créer mon compte (Nounou)"}
+            {isNounou && !isSelfRegisterNounou && "Activer mon compte (Nounou)"}
           </h2>
           <p className="form-subtitle">
             {isMenage && "Remplissez vos informations pour commencer"}
             {isAgence && "Créez l'espace professionnel de votre agence"}
-            {isNounou && "Inscrivez-vous pour être mise en relation avec une agence de votre quartier"}
+            {isNounou && isSelfRegisterNounou &&
+              "Inscrivez-vous pour être visible auprès des agences de votre quartier"}
+            {isNounou && !isSelfRegisterNounou &&
+              "Utilisez le numéro que votre agence a renseigné pour vous ajouter à son vivier"}
           </p>
+
+          {isNounou && (
+            <div className="nounou-mode-selector">
+              <button
+                type="button"
+                className={`nounou-mode-option ${nounouMode === "avec-agence" ? "active" : ""}`}
+                onClick={() => setNounouMode("avec-agence")}
+              >
+                J'ai une agence
+                <small>Elle a déjà renseigné mon numéro</small>
+              </button>
+              <button
+                type="button"
+                className={`nounou-mode-option ${nounouMode === "sans-agence" ? "active" : ""}`}
+                onClick={() => setNounouMode("sans-agence")}
+              >
+                Je n'ai pas d'agence
+                <small>Je m'inscris directement</small>
+              </button>
+            </div>
+          )}
 
           {serverError && (
             <p style={{ color: "#E87A7A", fontSize: 14, marginBottom: 12 }}>{serverError}</p>
           )}
 
           <form onSubmit={handleSubmit} className="form-container">
-            {/* Nom : toujours demandé (famille, agence, nounou en auto-inscription) */}
+            {/* Nom : demandé sauf activation nounou avec agence (déjà renseigné par l'agence) */}
             {showNomQuartier && (
-              isAgence ? (
-                <div className="form-group">
-                  <label>Nom de l'agence <span className="required">*</span></label>
-                  <input
-                    type="text"
-                    name="nom"
-                    placeholder="Nounou Services"
-                    value={formData.nom}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-              ) : (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Prénom <span className="required">*</span></label>
-                    <input
-                      type="text"
-                      name="prenom"
-                      placeholder="Amenan"
-                      value={formData.prenom}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Nom <span className="required">*</span></label>
-                    <input
-                      type="text"
-                      name="nom"
-                      placeholder="Koffi"
-                      value={formData.nom}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-                </div>
-              )
+              <div className="form-group">
+                <label>
+                  {isAgence ? "Nom de l'agence" : "Prénom et Nom"} <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="nom"
+                  placeholder={isAgence ? "Nounou Services" : "Koffi Amenan"}
+                  value={formData.nom}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
             )}
 
             <div className="form-group">
@@ -343,6 +334,11 @@ export default function InscriptionPage() {
                 required
               />
               {phoneError && <span className="error-message">{phoneError}</span>}
+              {isNounou && !isSelfRegisterNounou && (
+                <p className="field-hint">
+                  💡 Doit correspondre exactement au numéro renseigné par votre agence.
+                </p>
+              )}
             </div>
 
             {/* Quartier : pas demandé à la nounou, déjà renseigné par l'agence */}
@@ -646,22 +642,52 @@ export default function InscriptionPage() {
           gap: 16px;
         }
 
+        .nounou-mode-selector {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+
+        .nounou-mode-option {
+          flex: 1;
+          text-align: left;
+          padding: 14px 16px;
+          border: 2px solid #E8DDD0;
+          border-radius: 14px;
+          background: transparent;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: 14px;
+          font-weight: 700;
+          color: #1C1917;
+        }
+
+        .nounou-mode-option small {
+          display: block;
+          font-weight: 400;
+          font-size: 12px;
+          color: #78716C;
+          margin-top: 4px;
+        }
+
+        .nounou-mode-option:hover {
+          border-color: #D4B896;
+        }
+
+        .nounou-mode-option.active {
+          border-color: #C2614F;
+          background: #C2614F08;
+          color: #C2614F;
+        }
+
+        .nounou-mode-option.active small {
+          color: #C2614F;
+        }
+
         .form-group {
           display: flex;
           flex-direction: column;
           gap: 4px;
-        }
-
-        .form-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
-
-        @media (max-width: 480px) {
-          .form-row {
-            grid-template-columns: 1fr;
-          }
         }
 
         .form-group label {

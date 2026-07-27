@@ -279,6 +279,14 @@ export default function InscriptionPage() {
             {isNounou && "Inscrivez-vous pour être mise en relation avec une agence de votre quartier"}
           </p>
 
+          {isNounou && (
+            <p className="field-hint" style={{ marginBottom: 12 }}>
+              💡 Déjà ajoutée par une agence ? Pas besoin de vous inscrire ici : allez sur{" "}
+              <strong>Se connecter</strong> avec le numéro qu'elle a renseigné, votre compte
+              s'active automatiquement à la première connexion.
+            </p>
+          )}
+
           {serverError && (
             <p style={{ color: "#E87A7A", fontSize: 14, marginBottom: 12 }}>{serverError}</p>
           )}
@@ -644,6 +652,48 @@ export default function InscriptionPage() {
           display: flex;
           flex-direction: column;
           gap: 16px;
+        }
+
+        .nounou-mode-selector {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+
+        .nounou-mode-option {
+          flex: 1;
+          text-align: left;
+          padding: 14px 16px;
+          border: 2px solid #E8DDD0;
+          border-radius: 14px;
+          background: transparent;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: 14px;
+          font-weight: 700;
+          color: #1C1917;
+        }
+
+        .nounou-mode-option small {
+          display: block;
+          font-weight: 400;
+          font-size: 12px;
+          color: #78716C;
+          margin-top: 4px;
+        }
+
+        .nounou-mode-option:hover {
+          border-color: #D4B896;
+        }
+
+        .nounou-mode-option.active {
+          border-color: #C2614F;
+          background: #C2614F08;
+          color: #C2614F;
+        }
+
+        .nounou-mode-option.active small {
+          color: #C2614F;
         }
 
         .form-group {
