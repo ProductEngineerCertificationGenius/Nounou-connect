@@ -277,12 +277,12 @@ export default function EspaceMenage() {
 
           <div className="detail-body">
             <div className="detail-avis">
-              <h3>📝 Avis des familles</h3>
+              <h3>📝 Avis des ménages</h3>
               {(avisNounou ?? []).length > 0 ? (
                 (avisNounou ?? []).map((a) => (
                   <div key={a.id} className="avis-item">
                     <div className="avis-header">
-                      <span className="avis-nom"><strong>{a.menage?.nom || "Famille"}</strong></span>
+                      <span className="avis-nom"><strong>{a.menage?.nom || "Ménage"}</strong></span>
                       <div className="avis-note">
                         {[...Array(5)].map((_, j) => (
                           <Star key={j} size={14} color={j < a.note ? "#F59E0B" : "#E5E7EB"} fill={j < a.note ? "#F59E0B" : "none"} />

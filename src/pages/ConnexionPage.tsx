@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { useConnexion, useDemanderResetPin } from "../hooks/useAuth";
+import { useConnexion } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
 import type { ProfileType } from "../store/useAuthStore";
@@ -26,15 +26,19 @@ const PROFILE_LANDING: Record<ProfileType, string> = {
 // et pour réinitialiser un PIN oublié (géré ici).
 export default function ConnexionPage() {
   const navigate = useNavigate();
-  const [screen, setScreen] = useState<"login" | "forgot-phone">("login");
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
   const [telephone, setTelephone] = useState("");
   const [selectedProfil, setSelectedProfil] = useState<ProfileType>("menage");
+  // Sous-choix propre au profil nounou : purement une question de
+  // messagerie/contexte affiché, la connexion elle-même (téléphone +
+  // PIN, via useConnexion) est strictement identique dans les 2 cas —
+  // "avec-agence" peut en plus déclencher l'activation automatique du
+  // compte au tout premier essai (cf. useConnexion dans useAuth.ts).
+  const [nounouLoginMode, setNounouLoginMode] = useState<"avec-agence" | "sans-agence" | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   const connexion = useConnexion();
-  const demanderReset = useDemanderResetPin();
 
   // ===== GESTIONNAIRES DE SAISIE CHIFFRE PAR CHIFFRE =====
   const makeDigitHandler = (
@@ -64,6 +68,12 @@ export default function ConnexionPage() {
   const handlePinChange = makeDigitHandler(pin, setPin, "pin", PIN_LENGTH);
   const handlePinKeyDown = makeKeyDownHandler(pin, "pin");
 
+  const handleSelectProfil = (p: ProfileType) => {
+    setSelectedProfil(p);
+    setNounouLoginMode(null);
+    setErrorMessage("");
+  };
+
   // ===== ÉTAPE 1 : CONNEXION PAR TÉLÉPHONE + PIN (sans SMS) =====
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,22 +90,8 @@ export default function ConnexionPage() {
     }
   };
 
-  // ===== PIN OUBLIÉ : la vérification SMS a été retirée =====
-  const handleForgotPhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage("");
-    try {
-      await demanderReset.mutateAsync(telephone);
-      setScreen("login");
-      setErrorMessage(
-        "La vérification par SMS a été retirée. Si vous avez perdu votre PIN, veuillez vous reconnecter avec votre compte existant ou créer un nouveau compte."
-      );
-    } catch (err) {
-      setErrorMessage(getErrorMessage(err));
-    }
-  };
-
   const goToInscription = () => navigate("/inscription");
+  const goToResetPassword = () => navigate("/reset-password");
 
   return (
     <div className="connexion-page">
@@ -119,8 +115,7 @@ export default function ConnexionPage() {
             )}
 
             {/* ===== CONNEXION NORMALE : téléphone + PIN, 3 profils ===== */}
-            {screen === "login" && (
-              <>
+            <>
                 <h2 className="connexion-title">Se connecter</h2>
                 <p className="connexion-subtitle">Entrez votre téléphone et votre PIN</p>
 
@@ -128,27 +123,66 @@ export default function ConnexionPage() {
                   <button
                     type="button"
                     className={`profil-option ${selectedProfil === "menage" ? "active" : ""}`}
-                    onClick={() => setSelectedProfil("menage")}
+                    onClick={() => handleSelectProfil("menage")}
                   >
-                    🏠 Famille
+                    🏠 Ménage
                   </button>
                   <button
                     type="button"
                     className={`profil-option ${selectedProfil === "agence" ? "active" : ""}`}
-                    onClick={() => setSelectedProfil("agence")}
+                    onClick={() => handleSelectProfil("agence")}
                   >
                     🏢 Agence
                   </button>
                   <button
                     type="button"
                     className={`profil-option ${selectedProfil === "nounou" ? "active" : ""}`}
-                    onClick={() => setSelectedProfil("nounou")}
+                    onClick={() => handleSelectProfil("nounou")}
                   >
                     👩‍🍼 Nounou
                   </button>
                 </div>
 
-                <form onSubmit={handleLoginSubmit} className="connexion-form">
+                {selectedProfil === "nounou" && !nounouLoginMode && (
+                  <div className="nounou-mode-selector">
+                    <button
+                      type="button"
+                      className="nounou-mode-option"
+                      onClick={() => setNounouLoginMode("avec-agence")}
+                    >
+                      J'ai une agence
+                      <small>Elle a déjà renseigné mon numéro</small>
+                    </button>
+                    <button
+                      type="button"
+                      className="nounou-mode-option"
+                      onClick={() => setNounouLoginMode("sans-agence")}
+                    >
+                      Je n'ai pas encore d'agence
+                      <small>Voir si des agences m'ont répondu</small>
+                    </button>
+                  </div>
+                )}
+
+                {(selectedProfil !== "nounou" || nounouLoginMode) && (
+                  <>
+                    {selectedProfil === "nounou" && (
+                      <p className="field-hint" style={{ marginBottom: 12 }}>
+                        {nounouLoginMode === "avec-agence"
+                          ? "💡 Entrez le numéro que votre agence a renseigné et créez votre PIN : votre compte s'active automatiquement à cette première connexion."
+                          : "💡 Reconnectez-vous pour voir si des agences vous ont répondu, et continuer à consulter celles disponibles dans votre zone."}
+                        {" "}
+                        <button
+                          type="button"
+                          onClick={() => setNounouLoginMode(null)}
+                          style={{ background: "none", border: "none", color: "#C2614F", fontWeight: 600, cursor: "pointer", padding: 0, fontSize: 12 }}
+                        >
+                          Changer
+                        </button>
+                      </p>
+                    )}
+
+                    <form onSubmit={handleLoginSubmit} className="connexion-form">
                   <div className="form-group">
                     <label>Numéro de téléphone</label>
                     <input
@@ -185,7 +219,7 @@ export default function ConnexionPage() {
                     </div>
                   </div>
                   <div className="forgot-password">
-                    <a href="#" onClick={(e) => { e.preventDefault(); setErrorMessage(""); setScreen("forgot-phone"); }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); goToResetPassword(); }}>
                       PIN oublié ?
                     </a>
                   </div>
@@ -193,6 +227,8 @@ export default function ConnexionPage() {
                     {connexion.isPending ? "Connexion..." : "Se connecter"}
                   </button>
                 </form>
+                  </>
+                )}
 
                 <p className="signup-link">
                   Vous n'avez pas encore de compte ?{" "}
@@ -200,33 +236,7 @@ export default function ConnexionPage() {
                     S'inscrire
                   </a>
                 </p>
-              </>
-            )}
-
-            {/* ===== PIN OUBLIÉ : simplification sans SMS ===== */}
-            {screen === "forgot-phone" && (
-              <>
-                <h2 className="connexion-title">PIN oublié</h2>
-                <p className="connexion-subtitle">
-                  La vérification par SMS a été retirée. Entrez votre numéro pour revenir à la connexion.
-                </p>
-                <form onSubmit={handleForgotPhoneSubmit} className="connexion-form">
-                  <div className="form-group">
-                    <label>Numéro de téléphone</label>
-                    <input
-                      type="tel"
-                      placeholder="07 XX XX XX XX"
-                      value={telephone}
-                      onChange={(e) => setTelephone(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <button type="submit" className="submit-button" disabled={demanderReset.isPending}>
-                    {demanderReset.isPending ? "Traitement..." : "Retour à la connexion"}
-                  </button>
-                </form>
-              </>
-            )}
+            </>
           </div>
         </div>
       </div>
@@ -347,6 +357,38 @@ export default function ConnexionPage() {
           color: #C2614F;
         }
 
+        .nounou-mode-selector {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+
+        .nounou-mode-option {
+          flex: 1;
+          text-align: left;
+          padding: 14px 16px;
+          border: 2px solid #E8DDD0;
+          border-radius: 14px;
+          background: transparent;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: 14px;
+          font-weight: 700;
+          color: #1C1917;
+        }
+
+        .nounou-mode-option small {
+          display: block;
+          font-weight: 400;
+          font-size: 12px;
+          color: #78716C;
+          margin-top: 4px;
+        }
+
+        .nounou-mode-option:hover {
+          border-color: #D4B896;
+        }
+
         .connexion-form {
           display: flex;
           flex-direction: column;
@@ -357,6 +399,16 @@ export default function ConnexionPage() {
           display: flex;
           flex-direction: column;
           gap: 4px;
+        }
+
+        .field-hint {
+          font-size: 12px;
+          color: #78716C;
+          background: #FAF7F2;
+          border: 1px solid rgba(212, 184, 150, 0.25);
+          border-radius: 10px;
+          padding: 10px 12px;
+          line-height: 1.5;
         }
 
         .form-group label {
