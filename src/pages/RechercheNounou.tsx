@@ -20,11 +20,15 @@ import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
-interface AgenceResultat {
+interface NounouResultat {
   id: string;
+  agence_id: string;
   nom: string;
   quartier?: string;
+  experience?: string;
+  tarif?: number;
   note_moyenne?: number;
+  photo_url?: string;
 }
 
 // ================================================================
@@ -46,10 +50,13 @@ interface AgenceResultat {
 //                            plein / ponctuel, qui correspond bien à
 //                            ce que la colonne `temps` représente)
 //   4. Logement           -> demandes.logement
-//   5. Résultats réels    -> agences correspondantes (RPC
-//                            rechercher_agences), avec un vrai bouton
-//                            "Envoyer une demande" qui insère dans
-//                            `demandes` (statut 'En attente').
+//   5. Résultats réels    -> nounous disponibles correspondantes (RPC
+//                            rechercher_nounous), avec un vrai bouton
+//                            "Choisir cette nounou" qui insère dans
+//                            `demandes` (statut 'En attente',
+//                            nounou_assignee_id déjà pré-rempli avec
+//                            le choix de la famille — l'agence n'a
+//                            plus qu'à confirmer la disponibilité).
 // ================================================================
 
 const BESOINS = ["Garde d'enfants", "Aide ménagère", "Mixte (Garde + Ménage)"];
@@ -59,14 +66,14 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({ quartier: "", besoin: "", temps: "", logement: "" });
-  const [resultats, setResultats] = useState<AgenceResultat[]>([]);
+  const [resultats, setResultats] = useState<NounouResultat[]>([]);
   const [demandeEnvoyeeA, setDemandeEnvoyeeA] = useState<string | null>(null);
   const totalSteps = 5;
 
   const rechercher = useMutation({
     mutationFn: async () => {
       if (!isSupabaseConfigured) return [];
-      const { data: matches, error } = await supabase.rpc("rechercher_agences", {
+      const { data, error } = await supabase.rpc("rechercher_nounous", {
         p_quartier: formData.quartier,
         p_besoin: formData.besoin || null,
       });
@@ -80,19 +87,7 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
           logement: formData.logement,
         });
       }
-      if (!matches?.length) return [];
-      // La vue `agences_public` (0007_calibrage_affichage.sql) expose la
-      // colonne sous le nom `note` (alias de agences.note_moyenne), pas
-      // `note_moyenne` directement. Sélectionner `note_moyenne` ici
-      // provoquait un 400 côté PostgREST (colonne inexistante), qui
-      // faisait échouer toute la recherche silencieusement (pas de
-      // onError sur cette mutation à l'époque).
-      const { data, error: publicError } = await supabase
-        .from("agences_public")
-        .select("id, nom, quartier, note_moyenne:note")
-        .in("id", matches.map((a: { id: string }) => a.id));
-      if (publicError) throw publicError;
-      return data as AgenceResultat[];
+      return (data ?? []) as NounouResultat[];
     },
     onSuccess: (data) => {
       setResultats(data);
@@ -105,11 +100,12 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
   });
 
   const envoyerDemande = useMutation({
-    mutationFn: async (agenceId: string) => {
+    mutationFn: async (nounou: NounouResultat) => {
       if (!currentUser?.id) throw new Error("Vous devez être connecté.");
       const { error } = await supabase.from("demandes").insert({
-        agence_id: agenceId,
+        agence_id: nounou.agence_id,
         menage_id: currentUser.id,
+        nounou_assignee_id: nounou.id,
         quartier: formData.quartier,
         besoin: formData.besoin,
         temps: formData.temps,
@@ -117,9 +113,9 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
         statut: "En attente",
       });
       if (error) throw error;
-      return agenceId;
+      return nounou.id;
     },
-    onSuccess: (agenceId) => setDemandeEnvoyeeA(agenceId),
+    onSuccess: (nounouId) => setDemandeEnvoyeeA(nounouId),
     onError: (err) => alert(getErrorMessage(err)),
   });
 
@@ -251,38 +247,51 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
   const renderEtape5 = () => (
     <div className="step-content">
       <div className="step-icon"><Star size={32} strokeWidth={1.5} /></div>
-      <h2 className="step-title">Agences correspondantes</h2>
+      <h2 className="step-title">Nounous disponibles</h2>
       <p className="step-subtitle">
-        {resultats.length} agence{resultats.length !== 1 ? "s" : ""} avec des nounous disponibles à {formData.quartier}
+        {resultats.length} nounou{resultats.length !== 1 ? "s" : ""} disponible{resultats.length !== 1 ? "s" : ""} à {formData.quartier}
       </p>
       <div className="resultats-list">
-        {resultats.map((agence) => (
-          <div key={agence.id} className="resultat-card">
-            <div>
-              <h3>{agence.nom}</h3>
+        {resultats.map((nounou) => (
+          <div key={nounou.id} className="resultat-card resultat-card-nounou">
+            <div className="resultat-nounou-avatar">
+              {nounou.photo_url ? (
+                <img src={nounou.photo_url} alt={nounou.nom} />
+              ) : (
+                <div className="avatar-initials">
+                  {nounou.nom.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                </div>
+              )}
+            </div>
+            <div className="resultat-nounou-infos">
+              <h3>{nounou.nom}</h3>
               <div className="resultat-meta">
-                <span><MapPin size={12} /> {agence.quartier}</span>
-                {agence.note_moyenne != null && (
-                  <span><Star size={12} color="#F59E0B" fill="#F59E0B" /> {agence.note_moyenne}</span>
+                <span><MapPin size={12} /> {nounou.quartier}</span>
+                {nounou.experience && <span><Briefcase size={12} /> {nounou.experience}</span>}
+                {nounou.note_moyenne != null && (
+                  <span><Star size={12} color="#F59E0B" fill="#F59E0B" /> {nounou.note_moyenne}</span>
                 )}
               </div>
+              {nounou.tarif != null && (
+                <div className="resultat-tarif">{nounou.tarif.toLocaleString()} FCFA / jour</div>
+              )}
             </div>
-            {demandeEnvoyeeA === agence.id ? (
+            {demandeEnvoyeeA === nounou.id ? (
               <span className="demande-envoyee">✅ Demande envoyée</span>
             ) : (
               <button
                 className="btn-envoyer"
-                onClick={() => envoyerDemande.mutate(agence.id)}
+                onClick={() => envoyerDemande.mutate(nounou)}
                 disabled={envoyerDemande.isPending}
               >
-                <Send size={14} /> Envoyer une demande
+                <Send size={14} /> Choisir cette nounou
               </button>
             )}
           </div>
         ))}
         {resultats.length === 0 && (
           <p style={{ color: "#78716C", fontSize: 14 }}>
-            Aucune agence avec une nounou disponible ne correspond à ces critères pour le moment.
+            Aucune nounou disponible ne correspond à ces critères pour le moment.
           </p>
         )}
       </div>
@@ -1043,8 +1052,17 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
           padding: 16px; border: 1px solid rgba(28,25,23,0.1); border-radius: 14px; background: #FAF7F2;
         }
         .resultat-card h3 { font-size: 15px; font-weight: 600; color: #1C1917; margin: 0 0 4px; }
-        .resultat-meta { display: flex; gap: 12px; font-size: 12px; color: #78716C; align-items: center; }
+        .resultat-meta { display: flex; gap: 12px; font-size: 12px; color: #78716C; align-items: center; flex-wrap: wrap; }
         .resultat-meta span { display: flex; align-items: center; gap: 4px; }
+        .resultat-card-nounou { gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+        .resultat-nounou-avatar {
+          width: 52px; height: 52px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center; background: #F2D6D8;
+        }
+        .resultat-nounou-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .resultat-nounou-avatar .avatar-initials { color: #C2614F; font-weight: 700; font-size: 15px; }
+        .resultat-nounou-infos { flex: 1; min-width: 140px; }
+        .resultat-tarif { font-size: 13px; color: #1C1917; font-weight: 600; margin-top: 6px; }
         .btn-envoyer {
           display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px;
           background: #4A7C59; color: white; border: none; font-size: 13px; font-weight: 600; cursor: pointer;
