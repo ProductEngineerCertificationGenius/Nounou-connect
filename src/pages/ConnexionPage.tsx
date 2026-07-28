@@ -16,14 +16,11 @@ const PROFILE_LANDING: Record<ProfileType, string> = {
 
 export default function ConnexionPage() {
   const navigate = useNavigate();
-  
-  // ✅ Destructuration correcte
   const { setNounouMode, setNounouIdentifiant, setProfileType } = useAuthStore();
 
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
   const [telephone, setTelephone] = useState("");
-  const [identifiant, setIdentifiant] = useState("");
   const [selectedProfil, setSelectedProfil] = useState<ProfileType>("menage");
   const [errorMessage, setErrorMessage] = useState("");
   const [nounouMode, setNounouModeLocal] = useState<"avec-agence" | "sans-agence" | null>(null);
@@ -61,44 +58,33 @@ export default function ConnexionPage() {
     try {
       // ---- CAS NOUNOU ----
       if (isNounou) {
-        if (nounouMode === "avec-agence") {
-          if (!identifiant || identifiant.length < 3) {
-            setErrorMessage("Veuillez entrer votre identifiant.");
-            setIsLoading(false);
-            return;
-          }
-          // ✅ Utilisation correcte de setNounouMode
-          setNounouMode("avec-agence");
-          setNounouIdentifiant(identifiant);
-          setProfileType("nounou");
-          navigate("/");
+        // ✅ Nounou : téléphone + PIN (pas d'identifiant)
+        if (!telephone || telephone.length < 8) {
+          setErrorMessage("Veuillez entrer votre numéro de téléphone.");
           setIsLoading(false);
           return;
         }
 
-        if (nounouMode === "sans-agence") {
-          if (!telephone || telephone.length < 8) {
-            setErrorMessage("Veuillez entrer votre numéro de téléphone.");
-            setIsLoading(false);
-            return;
-          }
-
-          await connexion.mutateAsync({
-            phone: telephone,
-            pin: "0000",
-            profileType: "nounou",
-          });
-
-          // ✅ Utilisation correcte de setNounouMode
-          setNounouMode("sans-agence");
-          setNounouIdentifiant(null);
-          setProfileType("nounou");
-          navigate("/");
+        const pinCode = pin.join("");
+        if (pinCode.length !== PIN_LENGTH) {
+          setErrorMessage(`Veuillez entrer les ${PIN_LENGTH} chiffres du PIN.`);
           setIsLoading(false);
           return;
         }
 
-        setErrorMessage("Veuillez choisir votre situation (avec ou sans agence).");
+        const result = await connexion.mutateAsync({
+          phone: telephone,
+          pin: pinCode,
+          profileType: "nounou",
+        });
+
+        if (result.row) {
+          // ✅ On stocke le mode (avec ou sans agence) selon ce que l'utilisateur a choisi
+          setNounouMode(nounouMode); // "avec-agence" ou "sans-agence"
+          setNounouIdentifiant(null); // ❌ Pas d'identifiant
+          setProfileType("nounou");
+          navigate("/");
+        }
         setIsLoading(false);
         return;
       }
@@ -162,7 +148,7 @@ export default function ConnexionPage() {
         >
           <Building2 size={24} />
           <span>J'ai une agence</span>
-          <small>Je me connecte avec mon identifiant</small>
+          <small>Je me connecte avec mon téléphone et mon PIN</small>
         </button>
         <button
           type="button"
@@ -174,7 +160,7 @@ export default function ConnexionPage() {
         >
           <User size={24} />
           <span>Je n'ai pas encore d'agence</span>
-          <small>Je me connecte avec mon téléphone</small>
+          <small>Je me connecte avec mon téléphone et mon PIN</small>
         </button>
       </div>
       <button
@@ -219,50 +205,48 @@ export default function ConnexionPage() {
                 >
                   ← Retour
                 </button>
-                <h2 className="connexion-title">
-                  {nounouMode === "avec-agence" ? "🔑 Connexion nounou" : "📱 Connexion nounou"}
-                </h2>
+                <h2 className="connexion-title">🔑 Connexion nounou</h2>
                 <p className="connexion-subtitle">
-                  {nounouMode === "avec-agence"
-                    ? "Entrez votre identifiant fourni par votre agence"
-                    : "Entrez votre numéro pour accéder à votre espace"}
+                  Entrez votre téléphone et votre PIN pour accéder à votre espace
                 </p>
 
                 <form onSubmit={handleLoginSubmit} className="connexion-form">
-                  {nounouMode === "sans-agence" && (
-                    <div className="form-group">
-                      <label>Numéro de téléphone</label>
-                      <input
-                        type="tel"
-                        placeholder="07 XX XX XX XX"
-                        value={telephone}
-                        onChange={(e) => setTelephone(e.target.value)}
-                        required
-                      />
-                      <p className="field-hint">
-                        💡 Utilisez le numéro avec lequel vous vous êtes inscrite.
-                      </p>
-                    </div>
-                  )}
+                  <div className="form-group">
+                    <label>Numéro de téléphone</label>
+                    <input
+                      type="tel"
+                      placeholder="07 XX XX XX XX"
+                      value={telephone}
+                      onChange={(e) => setTelephone(e.target.value)}
+                      required
+                    />
+                  </div>
 
-                  {nounouMode === "avec-agence" && (
-                    <div className="form-group">
-                      <label className="pin-label">
-                        <User size={16} className="pin-icon" />
-                        Identifiant nounou
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Entrez votre identifiant"
-                        value={identifiant}
-                        onChange={(e) => setIdentifiant(e.target.value)}
-                        required
-                      />
-                      <p className="field-hint">
-                        💡 L'identifiant vous a été fourni par votre agence.
-                      </p>
+                  <div className="form-group">
+                    <label className="pin-label">
+                      <Lock size={16} className="pin-icon" />
+                      Code PIN ({PIN_LENGTH} chiffres)
+                    </label>
+                    <div className="pin-container">
+                      {[0, 1, 2, 3].map((index) => (
+                        <input
+                          key={index}
+                          id={`pin-${index}`}
+                          type={showPin ? "text" : "password"}
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={pin[index]}
+                          onChange={(e) => handlePinChange(index, e.target.value)}
+                          onKeyDown={(e) => handlePinKeyDown(index, e)}
+                          className="pin-input"
+                          autoFocus={index === 0}
+                        />
+                      ))}
+                      <button type="button" onClick={() => setShowPin(!showPin)} className="pin-toggle">
+                        {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
-                  )}
+                  </div>
 
                   <button type="submit" className="submit-button" disabled={isLoading || connexion.isPending}>
                     {isLoading || connexion.isPending ? "Connexion..." : "Se connecter"}

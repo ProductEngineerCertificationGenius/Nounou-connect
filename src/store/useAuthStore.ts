@@ -41,7 +41,7 @@ interface AuthState {
   // Setters
   setProfileType: (profileType: ProfileType | null) => void;
   setUser: (user: ProfileRow | null) => void;
-  setNounouMode: (mode: NounouMode) => void;           // ✅ Existe
+  setNounouMode: (mode: NounouMode) => void;
   setNounouIdentifiant: (identifiant: string | null) => void;
 
   // Actions
@@ -53,19 +53,16 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      // État initial
       profileType: null,
       user: null,
       nounouMode: null,
       nounouIdentifiant: null,
 
-      // Setters
       setProfileType: (profileType) => set({ profileType }),
       setUser: (user) => set({ user }),
       setNounouMode: (mode) => set({ nounouMode: mode }),
       setNounouIdentifiant: (identifiant) => set({ nounouIdentifiant: identifiant }),
 
-      // Actions
       logout: () => set({
         user: null,
         profileType: null,
