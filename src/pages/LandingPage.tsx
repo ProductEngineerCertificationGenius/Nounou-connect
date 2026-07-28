@@ -1,5 +1,5 @@
 // src/pages/LandingPage.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -10,21 +10,40 @@ import {
   ChevronDown,
   Shield,
   ArrowRight,
-  User,
-  Sparkles,
   ShieldCheck,
-  PhoneCall,
   MapPinned,
-  HandshakeIcon,
+  Clock,
   Smile,
+  Sparkles,
+  User,
+  LogOut,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 
-/* ================================================================ */
-/* ===== HOOKS ==================================================== */
-/* ================================================================ */
+// ================================================================
+// ===== PALETTE ==================================================
+// ================================================================
+const COLOR = {
+  bg: "#F1F0EC",
+  white: "#FFFFFF",
+  orange: "#F3811E",
+  orangeDark: "#C1631B",
+  orangeLight: "#FFF3D6",
+  gradFrom: "#F58F1F",
+  gradTo: "#FFCB3D",
+  ink: "#211B14",
+  inkSoft: "#8A867A",
+  inkLight: "#5C574C",
+  chip: "#1A1A1A",
+  border: "rgba(33,27,20,0.08)",
+  borderStrong: "rgba(33,27,20,0.12)",
+};
+
+// ================================================================
+// ===== HOOKS ====================================================
+// ================================================================
 function useIntersection(threshold = 0.2) {
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -39,7 +58,7 @@ function useIntersection(threshold = 0.2) {
   return { ref, visible };
 }
 
-function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: string }) {
+function AnimatedNumber({ target, suffix = "", divide = false }: { target: number; suffix?: string; divide?: boolean }) {
   const [count, setCount] = useState(0);
   const { ref, visible } = useIntersection(0.3);
   useEffect(() => {
@@ -53,7 +72,7 @@ function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: stri
     }, 16);
     return () => clearInterval(timer);
   }, [visible, target]);
-  return <span ref={ref}>{count}{suffix}</span>;
+  return <span ref={ref}>{count}{suffix}{divide && "/5"}</span>;
 }
 
 function FadeUp({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
@@ -88,44 +107,112 @@ function SlideIn({ children, reverse = false, delay = 0 }: { children: React.Rea
   );
 }
 
-/* ================================================================ */
-/* ===== NOUNOUS AVEC UI AVATARS =================================== */
-/* ================================================================ */
+// ================================================================
+// ===== HANDCRAFTS ===============================================
+// ================================================================
+function DoodleUnderline({ color = "#F3811E" }: { color?: string }) {
+  return (
+    <svg
+      style={{ position: "absolute", left: 0, bottom: -6, width: "100%", height: 8 }}
+      viewBox="0 0 100 8"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path d="M0 5 Q25 0 50 5 T100 4" stroke={color} strokeWidth="3" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ================================================================
+// ===== DONNÉES ==================================================
+// ================================================================
 const nounous = [
-  {
-    nom: "Marie K.",
-    quartier: "Koumassi",
-    agence: "Nounou Services",
-    avatar: "https://ui-avatars.com/api/?name=Marie+K&background=C2614F&color=fff&size=128&rounded=true&bold=true"
+  { 
+    nom: "Fatou D.", 
+    quartier: "Cocody", 
+    agence: "Confiance Garde", 
+    avatar: "https://ui-avatars.com/api/?name=Fatou+D&background=F3811E&color=fff&size=128&rounded=true&bold=true" 
   },
-  {
-    nom: "Fatou D.",
-    quartier: "Cocody",
-    agence: "Confiance Garde",
-    avatar: "https://ui-avatars.com/api/?name=Fatou+D&background=4A7C59&color=fff&size=128&rounded=true&bold=true"
+  { 
+    nom: "Amina S.", 
+    quartier: "Yopougon", 
+    agence: "Nounou Services", 
+    avatar: "https://ui-avatars.com/api/?name=Amina+S&background=F3811E&color=fff&size=128&rounded=true&bold=true" 
   },
-  {
-    nom: "Amina S.",
-    quartier: "Yopougon",
-    agence: "Nounou Services",
-    avatar: "https://ui-avatars.com/api/?name=Amina+S&background=C2614F&color=fff&size=128&rounded=true&bold=true"
-  },
-  {
-    nom: "Claire A.",
-    quartier: "Plateau",
-    agence: "Top Nounou",
-    avatar: "https://ui-avatars.com/api/?name=Claire+A&background=4A7C59&color=fff&size=128&rounded=true&bold=true"
+  { 
+    nom: "Mariam T.", 
+    quartier: "Koumassi", 
+    agence: "Nounou Services", 
+    avatar: "https://ui-avatars.com/api/?name=Mariam+T&background=F3811E&color=fff&size=128&rounded=true&bold=true" 
   },
 ];
 
-/* ================================================================ */
-/* ===== PAGE D'ACCUEIL ============================================ */
-/* ================================================================ */
+const quartiersTabs = ["Cocody", "Yopougon", "Koumassi"];
+
+const confianceData = [
+  { icon: <ShieldCheck size={22} />, titre: "Vérifiée", desc: "Chaque nounou est vérifiée par son agence partenaire." },
+  { icon: <MessageCircle size={22} />, titre: "Direct", desc: "Un tap et vous êtes en contact avec l'agence." },
+  { icon: <MapPinned size={22} />, titre: "45 quartiers", desc: "Toute Abidjan et ses environs proches." },
+  { icon: <Clock size={22} />, titre: "Rapide", desc: "Trouvez une nounou en 5 minutes en moyenne." },
+];
+
+// ================================================================
+// ===== PAGE =====================================================
+// ================================================================
 export default function LandingPage() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [floatVisible, setFloatVisible] = useState(true);
+  const [activeQuartier, setActiveQuartier] = useState("Cocody");
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const lastScroll = useRef(0);
+
+  const [isConnected, setIsConnected] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [profileType, setProfileType] = useState("");
+
+  const [avis, setAvis] = useState<{ auteur: string; quartier: string; texte: string; note: number }[]>([]);
+  const [showAvisForm, setShowAvisForm] = useState(false);
+  const [newAvis, setNewAvis] = useState({ texte: "", note: 5 });
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const stored = localStorage.getItem("nounou-connect-auth");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const user = parsed.state?.user;
+          const type = parsed.state?.profileType;
+          if (user) {
+            setIsConnected(true);
+            setUserName(user.nom || "Utilisateur");
+            setProfileType(type || "");
+          } else {
+            setIsConnected(false);
+          }
+        } catch (e) {
+          setIsConnected(false);
+        }
+      } else {
+        setIsConnected(false);
+      }
+    };
+    checkAuth();
+    window.addEventListener("storage", checkAuth);
+    return () => window.removeEventListener("storage", checkAuth);
+  }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("nounou_avis");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAvis(parsed);
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -143,197 +230,301 @@ export default function LandingPage() {
   };
 
   const onConnexion = () => navigate("/connexion");
+  const onLogout = () => {
+    localStorage.removeItem("nounou-connect-auth");
+    setIsConnected(false);
+    setShowProfileMenu(false);
+    navigate("/");
+  };
 
-  const steps = [
-    { num: "01", titre: "Je découvre Nounou Connect", desc: "Des profils vérifiés, des agences partenaires.", card: { icon: <Sparkles size={28} />, titre: "Nounou Connect", sub: "Simple & rapide" }, bg: "#FAF7F2" },
-    { num: "02", titre: "Je trouve en 5 minutes", desc: "Je choisis mon quartier. Marie est disponible.", card: { icon: <User size={28} />, titre: "Marie K.", sub: "📍 Koumassi", badge: "✅ Disponible", stars: true }, bg: "#F5EDE6" },
-    { num: "03", titre: "Son profil est vérifié", desc: "L'agence partenaire a vérifié ses références.", card: { icon: <ShieldCheck size={28} />, titre: "Confiance garantie", sub: "✅ Vérifiée par l'agence", badge: "🔒 Vérifiée" }, bg: "#FAF7F2" },
-    { num: "04", titre: "Contact WhatsApp direct", desc: "Un tap et je suis en contact avec l'agence.", card: { icon: <MessageCircle size={28} />, titre: "WhatsApp", sub: "Contact direct", badge: "✅ 1 tap", green: true }, bg: "#F5EDE6" },
-    { num: "05", titre: "Je suis tranquille", desc: "Mon enfant est bien gardé.", card: { icon: <Smile size={28} />, titre: "Bonheur", sub: "« Mon enfant est épanoui »", badge: "💚 Confiance", green: true }, bg: "#FAF7F2" },
+  const goToDashboard = () => {
+    if (profileType === "menage") navigate("/espace-menage");
+    else if (profileType === "agence") navigate("/espace-agence");
+    else if (profileType === "nounou") navigate("/espace-nounou");
+    else navigate("/connexion");
+  };
+
+  const nounousFiltrees = nounous.filter((n) => n.quartier === activeQuartier);
+  const nounouAffiche = nounousFiltrees.length > 0 ? nounousFiltrees[0] : null;
+
+  const handleAvisSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAvis.texte.trim()) return;
+
+    const newEntry = {
+      auteur: userName || "Famille Anonyme",
+      quartier: "Abidjan",
+      texte: newAvis.texte,
+      note: newAvis.note,
+    };
+
+    const updated = [newEntry, ...avis].slice(0, 2);
+    setAvis(updated);
+    localStorage.setItem("nounou_avis", JSON.stringify(updated));
+    setNewAvis({ texte: "", note: 5 });
+    setShowAvisForm(false);
+  };
+
+  const defaultAvis = [
+    { auteur: "Cécile K.", quartier: "Cocody", texte: "Nounou trouvée en 24h. Simple, rapide et rassurant.", note: 5 },
+    { auteur: "Jean M.", quartier: "Plateau", texte: "Les agences partenaires sont très réactives. J'ai trouvé une excellente aide à domicile en 2 jours.", note: 4 },
   ];
 
-  const pourquoiData = [
-    { icon: <PhoneCall size={20} />, titre: "Vérification humaine", desc: "Chaque nounou est vérifiée par son agence partenaire." },
-    { icon: <MessageCircle size={20} />, titre: "Contact WhatsApp direct", desc: "Un tap et vous êtes en contact avec l'agence." },
-    { icon: <MapPinned size={20} />, titre: "45 quartiers couverts", desc: "Toute Abidjan et ses environs proches." },
-    { icon: <HandshakeIcon size={20} />, titre: "Agences partenaires", desc: "Des professionnels du placement sélectionnés avec soin." },
+  const avisAffiches = avis.length > 0 ? avis : defaultAvis;
+
+  const getInitiales = (nom: string) => {
+    return nom
+      .split(" ")
+      .map((p) => p[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  };
+
+  const steps = [
+    { 
+      num: "01", 
+      icon: <Sparkles size={28} />, 
+      titre: "Je découvre", 
+      desc: "Des profils vérifiés, des agences partenaires.",
+      bg: COLOR.white
+    },
+    { 
+      num: "02", 
+      icon: <Search size={28} />, 
+      titre: "Je trouve", 
+      desc: "En 5 minutes, je trouve une nounou près de chez moi.",
+      bg: COLOR.bg,
+      reverse: true
+    },
+    { 
+      num: "03", 
+      icon: <ShieldCheck size={28} />, 
+      titre: "Je vérifie", 
+      desc: "Son profil est vérifié par son agence partenaire.",
+      bg: COLOR.white
+    },
+    { 
+      num: "04", 
+      icon: <MessageCircle size={28} />, 
+      titre: "Je contacte", 
+      desc: "Contact WhatsApp direct avec l'agence.",
+      bg: COLOR.bg,
+      reverse: true
+    },
+    { 
+      num: "05", 
+      icon: <Smile size={28} />, 
+      titre: "Je suis tranquille", 
+      desc: "Mon enfant est bien gardé, je suis serein.",
+      bg: COLOR.white
+    },
   ];
 
   return (
-    <div className="min-h-screen" style={{ fontFamily: "'Inter', sans-serif", background: "#FAF7F2", color: "#1C1917" }}>
+    <div style={{ fontFamily: "'Inter', sans-serif", background: COLOR.bg, color: COLOR.ink, minHeight: "100vh" }}>
 
       {/* ===== HEADER ===== */}
-      <header
+      {/* ===== HEADER MOBILE - Style Google ===== */}
+<header
+  style={{
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    background: scrolled ? "rgba(241,240,236,0.94)" : "transparent",
+    backdropFilter: scrolled ? "blur(14px)" : "none",
+    borderBottom: scrolled ? `1px solid ${COLOR.border}` : "none",
+    transition: "all 0.3s ease",
+    padding: "10px 16px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  }}
+>
+  {/* Logo */}
+  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <Logo size={28} />
+    <span style={{ fontSize: 15, fontWeight: 700, color: COLOR.ink }}>
+      Nounou Connect
+    </span>
+  </div>
+
+  {/* Droite : Avatar + Aide */}
+  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <a href="/aide" style={{ fontSize: 12, color: COLOR.inkSoft, textDecoration: "none" }}>
+      Aide
+    </a>
+
+    {/* Avatar avec menu */}
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setShowProfileMenu(!showProfileMenu)}
         style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-          background: scrolled ? "rgba(250,247,242,0.94)" : "transparent",
-          backdropFilter: scrolled ? "blur(14px)" : "none",
-          borderBottom: scrolled ? "1px solid rgba(194,97,79,0.12)" : "none",
-          transition: "all 0.3s ease",
-          padding: "14px 24px",
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          padding: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Logo size={36} />
-          <span style={{ fontSize: 17, fontWeight: 700, color: "#1C1917", letterSpacing: "-0.3px" }}>Nounou Connect</span>
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            background: isConnected ? COLOR.orange : "#DDD",
+            color: "white",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 700,
+            fontSize: 12,
+            userSelect: "none",
+          }}
+        >
+          {isConnected ? getInitiales(userName) : "?"}
         </div>
-        <nav style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a href="/aide" style={{ fontSize: 14, color: "#78716C", textDecoration: "none", fontWeight: 500 }}>Aide</a>
-          <button
-            onClick={onConnexion}
-            style={{
-              background: "transparent",
-              color: "#78716C",
-              border: "1.5px solid #D4B896",
-              padding: "8px 18px",
-              borderRadius: 50,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#C2614F";
-              e.currentTarget.style.color = "#C2614F";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "#D4B896";
-              e.currentTarget.style.color = "#78716C";
-            }}
-          >
-            Se connecter
-          </button>
-          <button
-            onClick={() => navigate("/inscription")}
-            style={{
-              background: "#C2614F",
-              color: "white",
-              border: "none",
-              padding: "8px 22px",
-              borderRadius: 50,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#B25545")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#C2614F")}
-          >
-            S'inscrire
-          </button>
-        </nav>
-      </header>
+      </button>
+    </div>
+  </div>
+</header>
 
       {/* ===== HERO ===== */}
       <section
         style={{
-          minHeight: "88vh",
+          position: "relative",
+          minHeight: "75vh",
           display: "flex",
           alignItems: "center",
-          background: "linear-gradient(145deg, #FAF7F2 0%, #F5EDE6 100%)",
-          borderBottom: "2px solid #E8DDD0",
+          overflow: "hidden",
           paddingTop: 80,
         }}
       >
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 24px", width: "100%" }}>
-          <div style={{ maxWidth: 640, margin: "0 auto", textAlign: "center" }}>
+        <div
+          style={{
+            position: "absolute",
+            top: -140,
+            right: -140,
+            width: 420,
+            height: 420,
+            borderRadius: "50%",
+            background: `linear-gradient(135deg, ${COLOR.gradFrom}, ${COLOR.gradTo})`,
+          }}
+        />
+
+        <div style={{ position: "relative", maxWidth: 1000, margin: "0 auto", padding: "40px 24px", width: "100%" }}>
+          <div style={{ maxWidth: 560, textAlign: "left" }}>
             <div
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                background: "#4A7C59",
-                color: "white",
-                fontSize: 11,
+                background: COLOR.white,
+                color: COLOR.ink,
+                fontSize: 12,
                 fontWeight: 700,
-                padding: "6px 16px",
+                padding: "7px 16px",
                 borderRadius: 50,
-                letterSpacing: "0.8px",
-                textTransform: "uppercase",
                 marginBottom: 20,
               }}
             >
-              <Shield size={12} /> Confiance garantie
+              <Shield size={13} /> Confiance garantie
             </div>
             <h1
               style={{
                 fontFamily: "'DM Serif Display', serif",
-                fontSize: "clamp(36px, 6vw, 56px)",
-                lineHeight: 1.1,
-                color: "#1C1917",
+                fontSize: "clamp(32px, 5vw, 52px)",
+                lineHeight: 1.12,
+                color: COLOR.ink,
                 marginBottom: 16,
               }}
             >
-              Trouvez la <span style={{ color: "#C2614F" }}>nounou</span>
-              <br />
+              Trouvez la{" "}
+              <span style={{ position: "relative", display: "inline-block" }}>
+                nounou
+                <DoodleUnderline color={COLOR.orange} />
+              </span>{" "}
               de confiance
             </h1>
             <p
               style={{
-                fontSize: "clamp(16px, 1.2vw, 18px)",
-                color: "#78716C",
-                maxWidth: 460,
-                margin: "0 auto 32px",
+                fontSize: "clamp(15px, 1.2vw, 18px)",
+                color: COLOR.inkSoft,
+                maxWidth: 440,
+                marginBottom: 32,
                 lineHeight: 1.65,
               }}
             >
               Des nounous vérifiées, près de chez vous, en contact direct WhatsApp avec nos agences partenaires.
             </p>
 
-            {/* 3 blocs → STATIQUES, sans redirection */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 14,
-                maxWidth: 540,
-                margin: "0 auto 32px",
-              }}
-            >
-              {[
-                { bg: "#4A7C59", icon: <Home size={20} />, titre: "Famille", sub: "Je cherche", profil: "menage" },
-                { bg: "#C2614F", icon: <Building2 size={20} />, titre: "Agence", sub: "Je gère", profil: "agence" },
-                { bg: "#D4B896", icon: <UserCheck size={20} />, titre: "Nounou", sub: "Je m'inscris", profil: "nounou" },
-              ].map((b, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: b.bg,
-                    color: "white",
-                    borderRadius: 18,
-                    padding: "18px 12px",
-                    textAlign: "center",
-                    cursor: "pointer",
-                    transition: "transform 0.25s ease, box-shadow 0.25s ease",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-4px)";
-                    e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,0,0,0.10)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "";
-                    e.currentTarget.style.boxShadow = "";
-                  }}
-                >
-                  {b.icon}
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{b.titre}</div>
-                  <div style={{ fontSize: 11, opacity: 0.85 }}>{b.sub}</div>
-                </div>
-              ))}
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 28 }}>
+              <button
+                onClick={() => navigate("/inscription")}
+                style={{
+                  background: COLOR.orange,
+                  color: "white",
+                  border: "none",
+                  padding: "14px 30px",
+                  borderRadius: 50,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = COLOR.orangeDark;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = COLOR.orange;
+                }}
+              >
+                <Search size={17} /> Commencer maintenant
+              </button>
+              <a
+                href="https://wa.me/2250152242299"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  background: COLOR.white,
+                  color: COLOR.ink,
+                  padding: "14px 26px",
+                  borderRadius: 50,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <MessageCircle size={16} /> Contactez-nous
+              </a>
             </div>
 
-            <div style={{ color: "#78716C", fontSize: 13, animation: "bounce 2s infinite" }}>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                background: COLOR.white,
+                borderRadius: 14,
+                padding: "12px 18px",
+              }}
+            >
+              <span style={{ color: COLOR.orange, fontSize: 14 }}>★★★★★</span>
+              <span style={{ fontSize: 13, color: COLOR.ink }}>
+                <strong>50+</strong> nounous vérifiées
+              </span>
+            </div>
+
+            <div style={{ color: COLOR.inkSoft, fontSize: 13, marginTop: 32, animation: "bounce 2s infinite" }}>
               <ChevronDown size={16} style={{ display: "inline" }} /> Découvrez comment ça marche
             </div>
           </div>
@@ -341,13 +532,20 @@ export default function LandingPage() {
       </section>
 
       {/* ===== QUI ÊTES-VOUS ? ===== */}
-      <section id="qui-etes-vous" style={{ padding: "80px 24px", maxWidth: 1000, margin: "0 auto" }}>
+      <section id="qui-etes-vous" style={{ padding: "72px 24px", maxWidth: 1000, margin: "0 auto" }}>
         <FadeUp>
-          <div style={{ textAlign: "center", marginBottom: 48 }}>
-            <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 3vw, 36px)", color: "#1C1917", marginBottom: 8 }}>
+          <div style={{ textAlign: "center", marginBottom: 44 }}>
+            <h2
+              style={{
+                fontFamily: "'DM Serif Display', serif",
+                fontSize: "clamp(26px, 3vw, 34px)",
+                color: COLOR.ink,
+                marginBottom: 8,
+              }}
+            >
               Qui êtes-vous ?
             </h2>
-            <p style={{ color: "#78716C", fontSize: 16 }}>Choisissez votre profil pour commencer</p>
+            <p style={{ color: COLOR.inkSoft, fontSize: 16 }}>Choisissez votre profil pour commencer</p>
           </div>
         </FadeUp>
         <div
@@ -358,31 +556,29 @@ export default function LandingPage() {
           }}
         >
           {[
-            { bg: "#4A7C59", icon: <Home size={32} />, titre: "Famille", desc: "Je cherche une nounou ou une aide pour mon domicile", btn: "Je cherche", btnBg: "#4A7C59", profil: "menage" },
-            { bg: "#C2614F", icon: <Building2 size={32} />, titre: "Agence", desc: "Je gère un vivier de nounous et je place des professionnelles", btn: "Accéder →", btnBg: "#C2614F", profil: "agence" },
-            { bg: "#D4B896", icon: <UserCheck size={32} />, titre: "Nounou", desc: "Je m'inscris et les agences de mon quartier me contactent", btn: "Je m'inscris", btnBg: "#D4B896", profil: "nounou" },
+            { icon: <Home size={30} />, titre: "Famille", desc: "Je cherche une nounou ou une aide pour mon domicile", btn: "Je cherche", profil: "menage" },
+            { icon: <Building2 size={30} />, titre: "Agence", desc: "Je gère un vivier de nounous et je place des professionnelles", btn: "Accéder", profil: "agence" },
+            { icon: <UserCheck size={30} />, titre: "Nounou", desc: "Je m'inscris et les agences de mon quartier me contactent", btn: "Je m'inscris", profil: "nounou" },
           ].map((c, i) => (
             <FadeUp key={i} delay={i * 80}>
               <div
                 onClick={() => goToInscriptionWithProfil(c.profil)}
                 style={{
-                  background: "white",
+                  background: COLOR.white,
                   borderRadius: 22,
                   padding: "32px 22px",
-                  border: "1px solid rgba(212,184,150,0.2)",
+                  border: `1px solid ${COLOR.border}`,
                   textAlign: "center",
                   cursor: "pointer",
                   transition: "all 0.3s ease",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-6px)";
-                  e.currentTarget.style.boxShadow = "0 16px 48px rgba(28,25,23,0.08)";
-                  e.currentTarget.style.borderColor = c.bg;
+                  e.currentTarget.style.borderColor = COLOR.orange;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "";
-                  e.currentTarget.style.boxShadow = "";
-                  e.currentTarget.style.borderColor = "rgba(212,184,150,0.2)";
+                  e.currentTarget.style.borderColor = COLOR.border;
                 }}
               >
                 <div
@@ -390,8 +586,8 @@ export default function LandingPage() {
                     width: 64,
                     height: 64,
                     borderRadius: "50%",
-                    background: c.bg + "18",
-                    color: c.bg,
+                    background: COLOR.orangeLight,
+                    color: COLOR.orangeDark,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -400,13 +596,13 @@ export default function LandingPage() {
                 >
                   {c.icon}
                 </div>
-                <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: "#1C1917", marginBottom: 8 }}>
+                <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: COLOR.ink, marginBottom: 8 }}>
                   {c.titre}
                 </h3>
-                <p style={{ fontSize: 14, color: "#78716C", lineHeight: 1.5, marginBottom: 20 }}>{c.desc}</p>
+                <p style={{ fontSize: 14, color: COLOR.inkSoft, lineHeight: 1.5, marginBottom: 20 }}>{c.desc}</p>
                 <button
                   style={{
-                    background: c.btnBg,
+                    background: COLOR.orange,
                     color: "white",
                     border: "none",
                     padding: "10px 28px",
@@ -414,10 +610,7 @@ export default function LandingPage() {
                     fontSize: 14,
                     fontWeight: 700,
                     cursor: "pointer",
-                    transition: "opacity 0.2s",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
                 >
                   {c.btn}
                 </button>
@@ -427,445 +620,439 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== STATS ===== */}
-      <section style={{ background: "#1C1917", padding: "70px 24px" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 0,
-              borderRadius: 20,
-              overflow: "hidden",
-            }}
-          >
-            {[
-              { target: 150, suffix: "+", label: "Nounous vérifiées", sub: "Appelées et validées" },
-              { target: 48, suffix: "", label: "Note moyenne /5", sub: "Sur 5 étoiles" },
-              { target: 45, suffix: "", label: "Quartiers couverts", sub: "Abidjan & environs" },
-            ].map((s, i) => (
+      {/* ===== COMMENT ÇA MARCHE - ZIGZAG ===== */}
+      <section id="comment" style={{ padding: "72px 24px", maxWidth: 1000, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <h2
+              style={{
+                fontFamily: "'DM Serif Display', serif",
+                fontSize: "clamp(26px, 3vw, 34px)",
+                color: COLOR.ink,
+                marginBottom: 8,
+              }}
+            >
+              Comment ça marche ?
+            </h2>
+            <p style={{ color: COLOR.inkSoft, fontSize: 16 }}>5 étapes simples pour trouver votre perle rare</p>
+          </div>
+        </FadeUp>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 64 }}>
+          {steps.map((step, i) => (
+            <div
+              key={i}
+              style={{
+                background: step.bg,
+                borderRadius: 24,
+                padding: "clamp(28px, 4vw, 44px) clamp(20px, 3vw, 40px)",
+              }}
+            >
+              <SlideIn reverse={step.reverse || false} delay={0}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 40,
+                    alignItems: "center",
+                    direction: step.reverse ? "rtl" : "ltr",
+                  }}
+                >
+                  <div style={{ direction: "ltr" }}>
+                    <div
+                      style={{
+                        fontFamily: "'DM Mono', monospace",
+                        fontSize: 12,
+                        color: COLOR.orange,
+                        fontWeight: 700,
+                        letterSpacing: "1px",
+                        textTransform: "uppercase",
+                        marginBottom: 12,
+                      }}
+                    >
+                      Étape {step.num}
+                    </div>
+                    <h3
+                      style={{
+                        fontFamily: "'DM Serif Display', serif",
+                        fontSize: "clamp(20px, 2vw, 24px)",
+                        color: COLOR.ink,
+                        marginBottom: 12,
+                      }}
+                    >
+                      {step.titre}
+                    </h3>
+                    <p
+                      style={{
+                        color: COLOR.inkSoft,
+                        fontSize: 15,
+                        lineHeight: 1.65,
+                        maxWidth: 380,
+                      }}
+                    >
+                      {step.desc}
+                    </p>
+                    <a
+                      href="/aide"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginTop: 16,
+                        color: COLOR.orangeDark,
+                        fontWeight: 700,
+                        fontSize: 14,
+                        textDecoration: "none",
+                      }}
+                    >
+                      En savoir plus <ArrowRight size={14} />
+                    </a>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "center", direction: "ltr" }}>
+                    <div
+                      style={{
+                        background: COLOR.white,
+                        borderRadius: 22,
+                        padding: "clamp(22px, 2.5vw, 30px) clamp(20px, 2vw, 26px)",
+                        textAlign: "center",
+                        maxWidth: 240,
+                        width: "100%",
+                        border: `1px solid ${COLOR.border}`,
+                        boxShadow: "0 12px 32px rgba(33,27,20,0.06)",
+                      }}
+                    >
+                      <div style={{ color: COLOR.orange, marginBottom: 10 }}>{step.icon}</div>
+                      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{step.titre}</div>
+                      <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>Étape {step.num}</div>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          background: COLOR.orange,
+                          color: "white",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: "5px 16px",
+                          borderRadius: 50,
+                        }}
+                      >
+                        {step.num === "05" ? "✅ Confiance" : "→ Continuer"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </SlideIn>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ===== POURQUOI NOUS FAIRE CONFIANCE ===== */}
+      <section id="pourquoi" style={{ padding: "72px 24px", maxWidth: 1000, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 44 }}>
+            <h2
+              style={{
+                fontFamily: "'DM Serif Display', serif",
+                fontSize: "clamp(26px, 3vw, 34px)",
+                color: COLOR.ink,
+                marginBottom: 8,
+              }}
+            >
+              Pourquoi nous faire confiance
+            </h2>
+            <p style={{ color: COLOR.inkSoft, fontSize: 16 }}>Ce qui fait vraiment la différence</p>
+          </div>
+        </FadeUp>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 16,
+          }}
+          className="pourquoi-grid"
+        >
+          {confianceData.map((p, i) => (
+            <FadeUp key={i} delay={i * 60}>
               <div
-                key={i}
                 style={{
-                  padding: "40px 24px",
+                  background: COLOR.white,
+                  borderRadius: 16,
+                  padding: "20px 14px",
                   textAlign: "center",
-                  borderRight: i < 2 ? "1px solid rgba(255,255,255,0.08)" : "none",
+                  border: `1px solid ${COLOR.border}`,
+                  transition: "all 0.3s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.borderColor = COLOR.orange;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "";
+                  e.currentTarget.style.borderColor = COLOR.border;
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "50%",
+                    background: COLOR.orangeLight,
+                    color: COLOR.orangeDark,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 10px",
+                  }}
+                >
+                  {p.icon}
+                </div>
+                <span
+                  style={{
+                    display: "inline-block",
+                    background: COLOR.orange,
+                    color: "white",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "2px 12px",
+                    borderRadius: 20,
+                    marginBottom: 6,
+                  }}
+                >
+                  {p.titre}
+                </span>
+                <p style={{ fontSize: 12, color: COLOR.inkSoft, lineHeight: 1.4, margin: 0 }}>{p.desc}</p>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+      </section>
+
+      {/* ===== STATISTIQUES ===== */}
+      <section style={{ padding: "56px 24px", maxWidth: 1000, margin: "0 auto" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 16,
+          }}
+          className="stats-grid"
+        >
+          {[
+            { target: 50, suffix: "+", label: "Nounous vérifiées", sub: "Appelées et validées" },
+            { target: 48, suffix: "", label: "Note moyenne /5", sub: "Sur 5 étoiles", divide: true },
+            { target: 45, suffix: "", label: "Quartiers couverts", sub: "Abidjan & environs" },
+          ].map((s, i) => (
+            <FadeUp key={i} delay={i * 80}>
+              <div
+                style={{
+                  background: COLOR.white,
+                  borderRadius: 18,
+                  padding: "32px 20px",
+                  textAlign: "center",
+                  border: `1px solid ${COLOR.border}`,
                 }}
               >
                 <div
                   style={{
                     fontFamily: "'DM Serif Display', serif",
-                    fontSize: "clamp(40px, 4vw, 52px)",
-                    color: "#C2614F",
-                    fontWeight: 400,
+                    fontSize: "clamp(30px, 4vw, 44px)",
+                    color: COLOR.orange,
                     lineHeight: 1,
                   }}
                 >
-                  <AnimatedNumber target={s.target} suffix={s.suffix} />
+                  <AnimatedNumber target={s.target} suffix={s.suffix} divide={s.divide} />
                 </div>
-                <div style={{ color: "white", fontWeight: 600, fontSize: "clamp(14px, 1vw, 16px)", marginTop: 8 }}>
+                <div
+                  style={{
+                    color: COLOR.ink,
+                    fontWeight: 600,
+                    fontSize: "clamp(13px, 1vw, 15px)",
+                    marginTop: 8,
+                  }}
+                >
                   {s.label}
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, marginTop: 4 }}>{s.sub}</div>
-              </div>
-            ))}
-          </div>
-          <div
-            style={{
-              marginTop: 28,
-              textAlign: "center",
-              color: "rgba(255,255,255,0.5)",
-              fontStyle: "italic",
-              fontSize: 15,
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-              paddingTop: 24,
-            }}
-          >
-            💚 &ldquo;La confiance, c'est notre priorité.&rdquo;
-          </div>
-        </div>
-      </section>
-
-      {/* ===== COMMENT ÇA MARCHE ===== */}
-      <section id="comment" style={{ padding: "80px 24px" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-          <FadeUp>
-            <div style={{ textAlign: "center", marginBottom: 64 }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 3vw, 36px)", color: "#1C1917", marginBottom: 8 }}>
-                Comment ça marche ?
-              </h2>
-              <p style={{ color: "#78716C", fontSize: 16 }}>5 étapes simples pour trouver votre perle rare</p>
-            </div>
-          </FadeUp>
-          <div style={{ display: "flex", flexDirection: "column", gap: 72 }}>
-            {steps.map((step, i) => (
-              <div key={i} style={{ background: step.bg, borderRadius: 24, padding: "clamp(32px, 4vw, 48px) clamp(20px, 3vw, 40px)" }}>
-                <SlideIn reverse={i % 2 === 1} delay={0}>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: i % 2 === 0 ? "1fr 1fr" : "1fr 1fr",
-                      gap: 48,
-                      alignItems: "center",
-                      direction: i % 2 === 1 ? "rtl" : "ltr",
-                    }}
-                  >
-                    <div style={{ direction: "ltr" }}>
-                      <div
-                        style={{
-                          fontFamily: "'DM Mono', monospace",
-                          fontSize: 12,
-                          color: "#C2614F",
-                          fontWeight: 700,
-                          letterSpacing: "1px",
-                          textTransform: "uppercase",
-                          marginBottom: 12,
-                        }}
-                      >
-                        Étape {step.num}
-                      </div>
-                      <h3
-                        style={{
-                          fontFamily: "'DM Serif Display', serif",
-                          fontSize: "clamp(22px, 2vw, 26px)",
-                          color: "#1C1917",
-                          marginBottom: 12,
-                        }}
-                      >
-                        {step.titre}
-                      </h3>
-                      <p style={{ color: "#78716C", fontSize: 15, lineHeight: 1.65, maxWidth: 380 }}>{step.desc}</p>
-                      <a href="/aide" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, color: "#4A7C59", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
-                        En savoir plus <ArrowRight size={14} />
-                      </a>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "center", direction: "ltr" }}>
-                      <div
-                        style={{
-                          background: step.card.green ? "#4A7C59" : "white",
-                          color: step.card.green ? "white" : "#1C1917",
-                          borderRadius: 22,
-                          padding: "clamp(24px, 2.5vw, 32px) clamp(20px, 2vw, 28px)",
-                          textAlign: "center",
-                          maxWidth: 240,
-                          width: "100%",
-                          border: !step.card.green ? "1px solid rgba(212,184,150,0.25)" : "none",
-                          boxShadow: "0 12px 40px rgba(28,25,23,0.08)",
-                        }}
-                      >
-                        <div style={{ color: step.card.green ? "white" : "#C2614F", marginBottom: 10 }}>
-                          {step.card.icon}
-                        </div>
-                        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{step.card.titre}</div>
-                        {step.card.stars && <div style={{ color: "#F59E0B", marginBottom: 4 }}>★★★★★</div>}
-                        <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>{step.card.sub}</div>
-                        {step.card.badge && (
-                          <span
-                            style={{
-                              display: "inline-block",
-                              background: step.card.green ? "white" : "#4A7C59",
-                              color: step.card.green ? "#4A7C59" : "white",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              padding: "5px 16px",
-                              borderRadius: 50,
-                            }}
-                          >
-                            {step.card.badge}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </SlideIn>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== NOS NOUNOUS AVEC UI AVATARS ===== */}
-      <section id="nounous" style={{ padding: "80px 24px", background: "#F5EDE6" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-          <FadeUp>
-            <div style={{ marginBottom: 36 }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 3vw, 36px)", color: "#1C1917", marginBottom: 6 }}>
-                Nos nounous
-              </h2>
-              <p style={{ color: "#78716C", fontSize: 16 }}>Via nos agences partenaires</p>
-            </div>
-          </FadeUp>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-              gap: 18,
-            }}
-          >
-            {nounous.map((n, i) => (
-              <FadeUp key={i} delay={i * 60}>
-                <div
-                  style={{
-                    background: "white",
-                    borderRadius: 20,
-                    padding: "20px 14px 18px",
-                    textAlign: "center",
-                    border: "1px solid rgba(212,184,150,0.2)",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-4px)";
-                    e.currentTarget.style.boxShadow = "0 10px 32px rgba(28,25,23,0.08)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "";
-                    e.currentTarget.style.boxShadow = "";
-                  }}
-                >
-                  <img
-                    src={n.avatar}
-                    alt={n.nom}
-                    loading="lazy"
-                    width={72}
-                    height={72}
-                    style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      margin: "0 auto 12px",
-                      display: "block",
-                    }}
-                  />
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "#1C1917", marginBottom: 2 }}>{n.nom}</div>
-                  <div style={{ color: "#F59E0B", fontSize: 13, marginBottom: 2 }}>★★★★★</div>
-                  <div style={{ fontSize: 13, color: "#78716C", marginBottom: 8 }}>📍 {n.quartier}</div>
-                  <span
-                    style={{
-                      display: "inline-block",
-                      fontSize: 11,
-                      padding: "3px 12px",
-                      borderRadius: 50,
-                      background: "#D1FAE5",
-                      color: "#065F46",
-                      fontWeight: 700,
-                    }}
-                  >
-                    ✅ Disponible
-                  </span>
-                  <div style={{ fontSize: 11, color: "#78716C", marginTop: 6, opacity: 0.7 }}>🏢 {n.agence}</div>
-                </div>
-              </FadeUp>
-            ))}
-          </div>
-          <div style={{ textAlign: "right", marginTop: 20 }}>
-            <a href="/inscription?profil=menage" style={{ color: "#4A7C59", fontWeight: 700, fontSize: 15, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-              Voir toutes les nounous <ArrowRight size={15} />
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== TÉMOIGNAGES ===== */}
-      <section style={{ padding: "80px 24px" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-          <FadeUp>
-            <div style={{ textAlign: "center", marginBottom: 40 }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 3vw, 36px)", color: "#1C1917", marginBottom: 6 }}>
-                Avis des familles
-              </h2>
-              <p style={{ color: "#78716C", fontSize: 16 }}>Des parents comme vous</p>
-            </div>
-          </FadeUp>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: 16,
-            }}
-          >
-            {[
-              { texte: "Nounou trouvée en 24h. Simple, rapide et rassurant.", auteur: "Cécile, Cocody", premier: true },
-              { texte: "Les agences partenaires sont très réactives. J'ai trouvé une excellente aide à domicile en 2 jours.", auteur: "Jean, Plateau", premier: false },
-            ].map((t, i) => (
-              <FadeUp key={i} delay={i * 100}>
-                <div
-                  style={{
-                    background: t.premier ? "#FEF3C7" : "white",
-                    padding: "24px 26px",
-                    borderRadius: 18,
-                    borderLeft: `4px solid ${t.premier ? "#F59E0B" : "#4A7C59"}`,
-                  }}
-                >
-                  {t.premier && (
-                    <span
-                      style={{
-                        display: "inline-block",
-                        fontSize: 10,
-                        background: "#F59E0B",
-                        color: "white",
-                        padding: "2px 10px",
-                        borderRadius: 50,
-                        fontWeight: 700,
-                        marginBottom: 6,
-                      }}
-                    >
-                      ⭐ Coup de cœur
-                    </span>
-                  )}
-                  <div style={{ color: "#F59E0B", fontSize: 16, marginBottom: 6 }}>★★★★★</div>
-                  <p style={{ fontSize: 15, color: "#1C1917", lineHeight: 1.6, marginBottom: 8, fontStyle: "italic" }}>
-                    &ldquo;{t.texte}&rdquo;
-                  </p>
-                  <span style={{ fontSize: 13, color: "#78716C", fontWeight: 600 }}>— {t.auteur}</span>
-                </div>
-              </FadeUp>
-            ))}
-            <FadeUp delay={160}>
-              <div
-                style={{
-                  gridColumn: "1 / -1",
-                  background: "#FAF7F2",
-                  borderLeft: "4px solid #D4B896",
-                  padding: "18px 26px",
-                  borderRadius: 18,
-                  textAlign: "center",
-                }}
-              >
-                <p style={{ fontSize: 15, color: "#78716C", fontStyle: "italic" }}>
-                  ✏️ Vous avez trouvé une nounou ? <a href="#" style={{ color: "#4A7C59", fontWeight: 700 }}>Donnez votre avis</a>
-                </p>
+                <div style={{ color: COLOR.inkSoft, fontSize: 12, marginTop: 4 }}>{s.sub}</div>
               </div>
             </FadeUp>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* ===== POURQUOI NOUS ===== */}
-      <section id="pourquoi" style={{ padding: "80px 24px", background: "#F5EDE6" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-          <FadeUp>
-            <div style={{ textAlign: "center", marginBottom: 44 }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 3vw, 36px)", color: "#1C1917", marginBottom: 6 }}>
-                Pourquoi nous choisir ?
-              </h2>
-              <p style={{ color: "#78716C", fontSize: 16 }}>Ce qui fait vraiment la différence</p>
-            </div>
-          </FadeUp>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 16,
-            }}
-          >
-            {pourquoiData.map((p, i) => (
-              <FadeUp key={i} delay={i * 60}>
-                <div
-                  style={{
-                    background: "white",
-                    padding: "22px 20px",
-                    borderRadius: 16,
-                    border: "1px solid rgba(212,184,150,0.2)",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 16,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
-                      background: "#C2614F18",
-                      color: "#C2614F",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {p.icon}
-                  </div>
-                  <div>
-                    <h4 style={{ fontWeight: 700, fontSize: 15, color: "#1C1917", marginBottom: 4 }}>{p.titre}</h4>
-                    <p style={{ fontSize: 13, color: "#78716C", lineHeight: 1.5 }}>{p.desc}</p>
-                  </div>
-                </div>
-              </FadeUp>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== CTA FINAL ===== */}
-      <section style={{ padding: "80px 24px" }}>
+      {/* ===== NOS NOUNOUS ===== */}
+      <section id="nounous" style={{ padding: "24px 24px 72px" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <FadeUp>
             <div
               style={{
-                background: "#1C1917",
+                position: "relative",
                 borderRadius: 28,
-                padding: "clamp(40px, 5vw, 60px) clamp(24px, 4vw, 40px)",
-                textAlign: "center",
+                padding: "clamp(28px, 4vw, 44px) clamp(20px, 3vw, 40px) clamp(36px, 5vw, 52px)",
+                background: `linear-gradient(135deg, ${COLOR.gradFrom}, ${COLOR.gradTo})`,
+                overflow: "hidden",
               }}
             >
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 3vw, 38px)", color: "white", marginBottom: 12 }}>
-                Prêt à trouver votre nounou ?
-              </h2>
-              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "clamp(15px, 1vw, 17px)", marginBottom: 32 }}>
-                Des nounous vérifiées, disponibles près de chez vous.
-              </p>
-              <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
-                <button
-                  onClick={() => navigate("/inscription")}
+              <div style={{ textAlign: "center", marginBottom: 28 }}>
+                <h2
                   style={{
-                    background: "#C2614F",
-                    color: "white",
-                    border: "none",
-                    padding: "16px 36px",
-                    borderRadius: 50,
-                    fontSize: "clamp(15px, 1vw, 17px)",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#B25545";
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#C2614F";
-                    e.currentTarget.style.transform = "";
+                    fontFamily: "'DM Serif Display', serif",
+                    fontSize: "clamp(24px, 3vw, 32px)",
+                    color: "#3B2306",
+                    marginBottom: 6,
                   }}
                 >
-                  <Search size={18} /> Commencer maintenant
-                </button>
-                <a
-                  href="https://wa.me/2250152242299"
-                  target="_blank"
-                  rel="noreferrer"
+                  Nos nounous
+                </h2>
+                <p style={{ color: "#5C3D0A", fontSize: 14 }}>Vérifiées par leur agence partenaire</p>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  marginBottom: 32,
+                  flexWrap: "wrap",
+                  gap: 4,
+                }}
+              >
+                <div
                   style={{
-                    background: "rgba(255,255,255,0.1)",
-                    color: "white",
-                    padding: "16px 32px",
-                    borderRadius: 50,
-                    fontSize: "clamp(14px, 0.9vw, 16px)",
-                    fontWeight: 600,
+                    background: COLOR.white,
+                    borderRadius: 24,
+                    padding: 4,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    justifyContent: "center",
+                    gap: 2,
+                  }}
+                >
+                  {quartiersTabs.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => setActiveQuartier(q)}
+                      style={{
+                        border: "none",
+                        cursor: "pointer",
+                        background: activeQuartier === q ? COLOR.orange : "transparent",
+                        color: activeQuartier === q ? "white" : COLOR.inkSoft,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: "8px 18px",
+                        borderRadius: 20,
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {nounouAffiche ? (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: COLOR.white,
+                      borderRadius: 24,
+                      padding: "32px 28px",
+                      textAlign: "center",
+                      boxShadow: "0 10px 40px rgba(59,35,6,0.15)",
+                      maxWidth: 280,
+                      width: "100%",
+                      transition: "transform 0.3s ease, box-shadow 0.3s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-6px)";
+                      e.currentTarget.style.boxShadow = "0 16px 48px rgba(59,35,6,0.20)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 10px 40px rgba(59,35,6,0.15)";
+                    }}
+                  >
+                    <img
+                      src={nounouAffiche.avatar}
+                      alt={nounouAffiche.nom}
+                      loading="lazy"
+                      width={96}
+                      height={96}
+                      style={{
+                        width: 96,
+                        height: 96,
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                        margin: "0 auto 14px",
+                        display: "block",
+                        border: `4px solid ${COLOR.orange}`,
+                      }}
+                    />
+                    <div style={{ fontWeight: 700, fontSize: 20, color: COLOR.ink, marginBottom: 4 }}>
+                      {nounouAffiche.nom}
+                    </div>
+                    <div style={{ fontSize: 14, color: COLOR.inkSoft, marginBottom: 6 }}>
+                      📍 {nounouAffiche.quartier}
+                    </div>
+                    <div style={{ fontSize: 13, color: COLOR.orange, fontWeight: 600, marginBottom: 10 }}>
+                      ⭐ 4.8 / 5
+                    </div>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        fontSize: 12,
+                        padding: "5px 18px",
+                        borderRadius: 50,
+                        background: COLOR.chip,
+                        color: "white",
+                        fontWeight: 600,
+                        marginBottom: 10,
+                      }}
+                    >
+                      ✅ Disponible
+                    </span>
+                    <div style={{ fontSize: 12, color: COLOR.inkSoft, opacity: 0.6 }}>
+                      🏢 {nounouAffiche.agence}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: "center", color: COLOR.inkSoft, fontSize: 14 }}>
+                  Aucune nounou disponible dans ce quartier.
+                </div>
+              )}
+
+              <div style={{ textAlign: "center", marginTop: 32 }}>
+                <a
+                  href="/inscription?profil=menage"
+                  style={{
+                    background: COLOR.white,
+                    color: COLOR.ink,
+                    fontWeight: 700,
+                    fontSize: 14,
                     textDecoration: "none",
+                    padding: "12px 26px",
+                    borderRadius: 50,
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 8,
-                    border: "1px solid rgba(255,255,255,0.15)",
                     transition: "all 0.2s",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "scale(1.02)";
+                    e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 >
-                  <MessageCircle size={17} /> Contactez-nous
+                  Voir toutes les nounous <ArrowRight size={15} />
                 </a>
               </div>
             </div>
@@ -873,68 +1060,392 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== FOOTER ===== */}
+      {/* ===== AVIS DES FAMILLES ===== */}
+      <section style={{ padding: "24px 24px 72px", maxWidth: 1000, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 40 }}>
+            <h2
+              style={{
+                fontFamily: "'DM Serif Display', serif",
+                fontSize: "clamp(26px, 3vw, 34px)",
+                color: COLOR.ink,
+                marginBottom: 6,
+              }}
+            >
+              Avis des familles
+            </h2>
+            <p style={{ color: COLOR.inkSoft, fontSize: 16 }}>Des parents comme vous</p>
+          </div>
+        </FadeUp>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 16,
+          }}
+        >
+          {avisAffiches.map((t, i) => (
+            <FadeUp key={i} delay={i * 100}>
+              <div
+                style={{
+                  background: i === 0 ? "#FFE9C2" : COLOR.white,
+                  padding: "24px 26px",
+                  borderRadius: 18,
+                  borderLeft: `4px solid ${COLOR.orange}`,
+                }}
+              >
+                {i === 0 && (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      fontSize: 10,
+                      background: COLOR.orange,
+                      color: "white",
+                      padding: "2px 10px",
+                      borderRadius: 50,
+                      fontWeight: 700,
+                      marginBottom: 6,
+                    }}
+                  >
+                    ⭐ Coup de cœur
+                  </span>
+                )}
+                <div style={{ color: COLOR.orange, fontSize: 16, marginBottom: 6 }}>
+                  {"★".repeat(t.note)}{"☆".repeat(5 - t.note)}
+                </div>
+                <p
+                  style={{
+                    fontSize: 15,
+                    color: COLOR.ink,
+                    lineHeight: 1.6,
+                    marginBottom: 8,
+                    fontStyle: "italic",
+                  }}
+                >
+                  &ldquo;{t.texte}&rdquo;
+                </p>
+                <span style={{ fontSize: 13, color: COLOR.inkSoft, fontWeight: 600 }}>
+                  — {t.auteur}, {t.quartier}
+                </span>
+              </div>
+            </FadeUp>
+          ))}
+
+          <FadeUp delay={160}>
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                background: COLOR.white,
+                borderLeft: `4px solid ${COLOR.border}`,
+                padding: "18px 26px",
+                borderRadius: 18,
+                textAlign: "center",
+                border: `1px solid ${COLOR.borderStrong}`,
+              }}
+            >
+              <p style={{ fontSize: 15, color: COLOR.inkSoft, fontStyle: "italic" }}>
+                Vous avez trouvé une nounou ?{" "}
+                <button
+                  onClick={() => {
+                    if (isConnected) {
+                      setShowAvisForm(true);
+                      setTimeout(() => {
+                        document.getElementById("avis-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }, 100);
+                    } else {
+                      navigate("/connexion");
+                    }
+                  }}
+                  style={{
+                    color: COLOR.orange,
+                    fontWeight: 700,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "inherit",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Donnez votre avis
+                </button>
+              </p>
+            </div>
+          </FadeUp>
+        </div>
+
+        {showAvisForm && isConnected && (
+          <div
+            id="avis-form"
+            style={{
+              marginTop: 24,
+              padding: 24,
+              background: COLOR.white,
+              borderRadius: 18,
+              border: `2px solid ${COLOR.orange}`,
+              maxWidth: 500,
+              marginLeft: "auto",
+              marginRight: "auto",
+              animation: "fadeIn 0.3s ease",
+            }}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, textAlign: "center" }}>
+              Laissez votre avis
+            </h3>
+            <form onSubmit={handleAvisSubmit}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                  Note
+                </label>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setNewAvis({ ...newAvis, note: s })}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        fontSize: 24,
+                        cursor: "pointer",
+                        color: s <= newAvis.note ? COLOR.orange : "#DDD",
+                        padding: 0,
+                      }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                  Votre témoignage
+                </label>
+                <textarea
+                  value={newAvis.texte}
+                  onChange={(e) => setNewAvis({ ...newAvis, texte: e.target.value })}
+                  placeholder="Partagez votre expérience..."
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: 12,
+                    border: `1px solid ${COLOR.border}`,
+                    fontFamily: "inherit",
+                    fontSize: 14,
+                    resize: "vertical",
+                    minHeight: 80,
+                    outline: "none",
+                  }}
+                  required
+                />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAvisForm(false)}
+                  style={{
+                    padding: "10px 20px",
+                    borderRadius: 50,
+                    border: `1px solid ${COLOR.border}`,
+                    background: "transparent",
+                    color: COLOR.inkSoft,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: "10px 20px",
+                    borderRadius: 50,
+                    border: "none",
+                    background: COLOR.orange,
+                    color: "white",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  Publier
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </section>
+
+      {/* ===== CTA FINAL ===== */}
+      <section style={{ padding: "24px 24px 72px", maxWidth: 720, margin: "0 auto" }}>
+        <FadeUp>
+          <div
+            style={{
+              background: "#E7E4DC",
+              borderRadius: 40,
+              padding: "8px 8px 8px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "nowrap",
+              gap: 8,
+            }}
+          >
+            <span
+              style={{
+                color: "#5C574C",
+                fontSize: "clamp(12px, 1.2vw, 14px)",
+                fontWeight: 500,
+                padding: "10px 0",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Prêt à trouver votre nounou ?
+            </span>
+            <button
+              onClick={() => navigate("/inscription")}
+              style={{
+                background: COLOR.gradTo,
+                color: "#3B2306",
+                border: "none",
+                padding: "14px 30px",
+                borderRadius: 32,
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                whiteSpace: "nowrap",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "scale(1.02)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
+              }}
+            >
+              S'inscrire
+            </button>
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <a
+              href="https://wa.me/2250152242299"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                color: COLOR.orangeDark,
+                fontSize: 14,
+                fontWeight: 600,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <MessageCircle size={15} /> Ou contactez-nous directement sur WhatsApp
+            </a>
+          </div>
+        </FadeUp>
+      </section>
+
+      {/* ===== FOOTER - 3 colonnes (sans Infos) ===== */}
       <footer
         style={{
-          background: "#1C1917",
-          color: "rgba(255,255,255,0.55)",
-          padding: "clamp(24px, 3vw, 40px) 20px 20px",
+          background: COLOR.white,
+          color: COLOR.inkSoft,
+          padding: "48px 24px 24px",
+          borderTop: `2px solid ${COLOR.border}`,
           borderRadius: "28px 28px 0 0",
-          textAlign: "center",
         }}
       >
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: 28,
-              marginBottom: 24,
+              gridTemplateColumns: "2fr 1fr 1fr",
+              gap: 32,
+              marginBottom: 32,
+              textAlign: "left",
             }}
+            className="footer-grid"
           >
+            {/* Brand */}
             <div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <Logo size={32} />
-                <span style={{ color: "white", fontWeight: 700, fontSize: 15 }}>Nounou Connect</span>
+                <span style={{ color: COLOR.ink, fontWeight: 700, fontSize: 16 }}>
+                  Nounou Connect
+                </span>
               </div>
-              <p style={{ fontSize: 12, lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
-                La plateforme de mise en relation entre familles, agences de placement et nounous professionnelles à Abidjan.
+              <p style={{ fontSize: 13, lineHeight: 1.7, maxWidth: 280, color: COLOR.inkSoft }}>
+                La plateforme de mise en relation entre familles, agences de placement et nounous
+                professionnelles à Abidjan.
               </p>
-              <div style={{ marginTop: 12, display: "flex", justifyContent: "center", gap: 16 }}>
-                {["TikTok", "Facebook", "WhatsApp"].map((s) => (
-                  <a key={s} href="#" style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", textDecoration: "none", transition: "color 0.2s" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
-                  >{s}</a>
-                ))}
+              <div style={{ marginTop: 16, display: "flex", gap: 16 }}>
+                <a href="#" style={{ color: COLOR.inkSoft, textDecoration: "none", fontSize: 13 }}>
+                  TikTok
+                </a>
+                <a href="#" style={{ color: COLOR.inkSoft, textDecoration: "none", fontSize: 13 }}>
+                  Facebook
+                </a>
+                <a href="#" style={{ color: COLOR.inkSoft, textDecoration: "none", fontSize: 13 }}>
+                  WhatsApp
+                </a>
               </div>
             </div>
+
+            {/* Liens */}
             <div>
-              <h4 style={{ color: "white", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Liens</h4>
-              {[
-                { label: "À propos", href: "/a-propos" },
-                { label: "Conditions", href: "#" },
-                { label: "Confidentialité", href: "#" },
-              ].map((l) => (
-                <a key={l.label} href={l.href} style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.45)", textDecoration: "none", marginBottom: 6, transition: "color 0.2s" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
-                >{l.label}</a>
-              ))}
+              <h4 style={{ color: COLOR.ink, fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
+                Liens
+              </h4>
+              <a
+                href="/a-propos"
+                style={{ display: "block", color: COLOR.inkSoft, textDecoration: "none", fontSize: 13, marginBottom: 8 }}
+              >
+                À propos
+              </a>
+              <a
+                href="#"
+                style={{ display: "block", color: COLOR.inkSoft, textDecoration: "none", fontSize: 13, marginBottom: 8 }}
+              >
+                Conditions
+              </a>
+              <a
+                href="#"
+                style={{ display: "block", color: COLOR.inkSoft, textDecoration: "none", fontSize: 13, marginBottom: 8 }}
+              >
+                Confidentialité
+              </a>
+              <a
+                href="/aide"
+                style={{ display: "block", color: COLOR.inkSoft, textDecoration: "none", fontSize: 13, marginBottom: 8 }}
+              >
+                Aide
+              </a>
             </div>
+
+            {/* Contact */}
             <div>
-              <h4 style={{ color: "white", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Contact</h4>
-              <p style={{ fontSize: 12, marginBottom: 4 }}>📧 contact@nounouconnect.ci</p>
-              <p style={{ fontSize: 12, marginBottom: 4 }}>📞 +225 01 52 24 22 99</p>
-              <p style={{ fontSize: 12 }}>📍 Abidjan, Côte d'Ivoire</p>
+              <h4 style={{ color: COLOR.ink, fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
+                Contact
+              </h4>
+              <p style={{ fontSize: 13, marginBottom: 6 }}>📧 contact@nounouconnect.ci</p>
+              <p style={{ fontSize: 13, marginBottom: 6 }}>📞 +225 01 52 24 22 99</p>
+              <p style={{ fontSize: 13 }}>📍 Abidjan, Côte d'Ivoire</p>
             </div>
           </div>
+
           <div
             style={{
-              borderTop: "1px solid rgba(255,255,255,0.08)",
+              borderTop: `1px solid ${COLOR.border}`,
               paddingTop: 16,
-              fontSize: 11,
-              color: "rgba(255,255,255,0.3)",
+              textAlign: "center",
+              fontSize: 12,
+              color: COLOR.inkSoft,
             }}
           >
             © 2026 Nounou Connect · Tous droits réservés
@@ -951,37 +1462,57 @@ export default function LandingPage() {
           transform: "translateX(-50%)",
           zIndex: 999,
           opacity: floatVisible ? 1 : 0,
-          transition: "opacity 0.3s, transform 0.3s",
+          transition: "opacity 0.3s",
         }}
       >
         <button
-          onClick={() => navigate("/inscription")}
+          onClick={isConnected ? goToDashboard : () => navigate("/inscription")}
           style={{
-            background: "#4A7C59",
-            color: "white",
+            background: isConnected ? COLOR.white : COLOR.orange,
+            color: isConnected ? COLOR.ink : "white",
+            border: isConnected ? `1.5px solid ${COLOR.orange}` : "none",
             padding: "14px 32px",
             borderRadius: 50,
-            border: "none",
             fontSize: "clamp(13px, 1vw, 15px)",
             fontWeight: 700,
             cursor: "pointer",
-            boxShadow: "0 8px 32px rgba(74,124,89,0.45)",
+            boxShadow: isConnected 
+              ? "0 8px 32px rgba(33,27,20,0.10)" 
+              : "0 8px 32px rgba(243,129,30,0.35)",
             display: "flex",
             alignItems: "center",
             gap: 10,
-            transition: "all 0.2s",
             whiteSpace: "nowrap",
+            transition: "all 0.2s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#3A6248";
-            e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+            if (isConnected) {
+              e.currentTarget.style.background = COLOR.orange;
+              e.currentTarget.style.color = "white";
+            } else {
+              e.currentTarget.style.background = COLOR.orangeDark;
+              e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+            }
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "#4A7C59";
-            e.currentTarget.style.transform = "";
+            if (isConnected) {
+              e.currentTarget.style.background = COLOR.white;
+              e.currentTarget.style.color = COLOR.ink;
+            } else {
+              e.currentTarget.style.background = COLOR.orange;
+              e.currentTarget.style.transform = "";
+            }
           }}
         >
-          <Search size={16} /> Je cherche une nounou
+          {isConnected ? (
+            <>
+              <User size={16} /> Aller à mon espace
+            </>
+          ) : (
+            <>
+              <Search size={16} /> Je cherche une nounou
+            </>
+          )}
         </button>
       </div>
 
@@ -989,6 +1520,141 @@ export default function LandingPage() {
         @keyframes bounce {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(8px); }
+        }
+
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+          .header {
+            padding: 8px 12px !important;
+          }
+          .header nav {
+            gap: 4px !important;
+          }
+          .header nav button {
+            padding: 5px 10px !important;
+            font-size: 11px !important;
+            min-width: 70px !important;
+          }
+          .header nav a {
+            font-size: 11px !important;
+          }
+          .header-logo span {
+            font-size: 13px !important;
+          }
+          .header-logo svg {
+            width: 28px !important;
+            height: 28px !important;
+          }
+          .footer-grid {
+            grid-template-columns: 1fr !important;
+            text-align: center !important;
+          }
+          .footer-grid > div {
+            text-align: center !important;
+          }
+          .footer-grid > div > div {
+            justify-content: center !important;
+          }
+          .footer-grid p {
+            margin: 0 auto !important;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .pourquoi-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+          }
+          .pourquoi-grid > div {
+            padding: 14px 10px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .stats-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .hero h1 {
+            font-size: 28px !important;
+          }
+          .hero-actions {
+            flex-direction: column !important;
+          }
+          .hero-actions button,
+          .hero-actions a {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          .cta-container {
+            flex-wrap: wrap !important;
+            justify-content: center !important;
+            padding: 12px !important;
+          }
+          .cta-container span {
+            font-size: 12px !important;
+            text-align: center !important;
+            padding: 6px 0 !important;
+          }
+          .cta-container button {
+            font-size: 12px !important;
+            padding: 8px 16px !important;
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          .nounou-profile-card {
+            max-width: 240px !important;
+            padding: 24px 20px !important;
+          }
+          .nounou-profile-card img {
+            width: 72px !important;
+            height: 72px !important;
+          }
+          .nounou-profile-card .nom {
+            font-size: 17px !important;
+          }
+          .footer-grid {
+            grid-template-columns: 1fr !important;
+            text-align: center !important;
+          }
+        }
+
+        @media (max-width: 380px) {
+          .header-logo span {
+            font-size: 11px !important;
+          }
+          .header nav button {
+            min-width: 60px !important;
+            font-size: 10px !important;
+            padding: 4px 6px !important;
+          }
+          .header nav {
+            gap: 3px !important;
+          }
+          .hero h1 {
+            font-size: 22px !important;
+          }
+          .avatar-circle {
+            width: 30px !important;
+            height: 30px !important;
+            font-size: 11px !important;
+          }
+          .nounou-profile-card {
+            max-width: 200px !important;
+            padding: 18px 14px !important;
+          }
+          .nounou-profile-card img {
+            width: 60px !important;
+            height: 60px !important;
+          }
         }
       `}</style>
     </div>
