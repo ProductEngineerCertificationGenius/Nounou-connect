@@ -1,5 +1,5 @@
 // src/pages/LandingPage.tsx
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -17,6 +17,7 @@ import {
   Sparkles,
   User,
   LogOut,
+  Heart,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 
@@ -325,233 +326,225 @@ export default function LandingPage() {
     <div style={{ fontFamily: "'Inter', sans-serif", background: COLOR.bg, color: COLOR.ink, minHeight: "100vh" }}>
 
       {/* ===== HEADER ===== */}
-      {/* ===== HEADER MOBILE - Style Google ===== */}
-{/* ===== HEADER ===== */}
-<header
-  style={{
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    background: scrolled ? "rgba(241,240,236,0.94)" : "transparent",
-    backdropFilter: scrolled ? "blur(14px)" : "none",
-    borderBottom: scrolled ? `1px solid ${COLOR.border}` : "none",
-    transition: "all 0.3s ease",
-    padding: "10px 20px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 8,
-  }}
->
-  {/* Logo */}
-  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-    <Logo size={32} />
-    <span style={{ fontSize: 16, fontWeight: 700, color: COLOR.ink, letterSpacing: "-0.3px" }}>
-      Nounou Connect
-    </span>
-  </div>
-
-  {/* Navigation */}
-  <nav style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-    <a href="/aide" style={{ fontSize: 13, color: COLOR.inkSoft, textDecoration: "none", fontWeight: 500 }}>
-      Aide
-    </a>
-
-    {isConnected ? (
-      <>
-        {/* ✅ Bouton Tableau de bord */}
-        <button
-          onClick={goToDashboard}
-          style={{
-            background: "transparent",
-            color: COLOR.ink,
-            border: `1.5px solid ${COLOR.orange}`,
-            padding: "7px 16px",
-            borderRadius: 50,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-            transition: "all 0.2s",
-            minWidth: "120px",
-            textAlign: "center",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = COLOR.orange;
-            e.currentTarget.style.color = "white";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = COLOR.ink;
-          }}
-        >
-          Tableau de bord
-        </button>
-
-        {/* ✅ Avatar avec menu déroulant */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              padding: "4px 6px",
-              borderRadius: 50,
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(33,27,20,0.05)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-          >
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: "50%",
-                background: COLOR.orange,
-                color: "white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: 13,
-                userSelect: "none",
-              }}
-            >
-              {getInitiales(userName)}
-            </div>
-            <ChevronDown size={14} color={COLOR.inkSoft} />
-          </button>
-
-          {/* ✅ Menu déroulant */}
-          {showProfileMenu && (
-            <div
-              style={{
-                position: "absolute",
-                top: 42,
-                right: 0,
-                background: COLOR.white,
-                borderRadius: 14,
-                boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
-                border: `1px solid ${COLOR.border}`,
-                minWidth: 160,
-                overflow: "hidden",
-                animation: "slideDown 0.2s ease",
-                zIndex: 100,
-              }}
-              onMouseLeave={() => setShowProfileMenu(false)}
-            >
-              {/* Infos utilisateur */}
-              <div
-                style={{
-                  padding: "10px 14px",
-                  borderBottom: `1px solid ${COLOR.border}`,
-                  background: COLOR.orangeLight,
-                }}
-              >
-                <div style={{ fontWeight: 600, color: COLOR.ink, fontSize: 13 }}>{userName}</div>
-                <div style={{ fontSize: 10, color: COLOR.inkSoft, textTransform: "capitalize" }}>
-                  {profileType === "menage" ? "👨‍👩‍👧‍👦 Famille" :
-                   profileType === "agence" ? "🏢 Agence" :
-                   profileType === "nounou" ? "👩‍🍼 Nounou" : "Utilisateur"}
-                </div>
-              </div>
-
-              {/* ✅ Déconnexion */}
-              <button
-                onClick={onLogout}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  width: "100%",
-                  padding: "10px 14px",
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  color: "#DC2626",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#FEE2E2"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-              >
-                <LogOut size={16} /> Déconnexion
-              </button>
-            </div>
-          )}
+      <header
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          background: scrolled ? "rgba(241,240,236,0.94)" : "transparent",
+          backdropFilter: scrolled ? "blur(14px)" : "none",
+          borderBottom: scrolled ? `1px solid ${COLOR.border}` : "none",
+          transition: "all 0.3s ease",
+          padding: "10px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Logo size={32} />
+          <span style={{ fontSize: 16, fontWeight: 700, color: COLOR.ink, letterSpacing: "-0.3px" }}>
+            Nounou Connect
+          </span>
         </div>
-      </>
-    ) : (
-      /* ✅ NON CONNECTÉ : boutons Se connecter et S'inscrire */
-      <>
-        <button
-          onClick={onConnexion}
-          style={{
-            background: "transparent",
-            color: COLOR.inkSoft,
-            border: `1.5px solid ${COLOR.border}`,
-            padding: "7px 14px",
-            borderRadius: 50,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-            transition: "all 0.2s",
-            minWidth: "100px",
-            textAlign: "center",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = COLOR.orange;
-            e.currentTarget.style.color = COLOR.orange;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = COLOR.border;
-            e.currentTarget.style.color = COLOR.inkSoft;
-          }}
-        >
-          Se connecter
-        </button>
-        <button
-          onClick={() => navigate("/inscription")}
-          style={{
-            background: COLOR.orange,
-            color: "white",
-            border: "none",
-            padding: "7px 14px",
-            borderRadius: 50,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-            transition: "all 0.2s",
-            minWidth: "100px",
-            textAlign: "center",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = COLOR.orangeDark)}
-          onMouseLeave={(e) => (e.currentTarget.style.background = COLOR.orange)}
-        >
-          S'inscrire
-        </button>
-      </>
-    )}
-  </nav>
-</header>
 
-      {/* ===== HERO ===== */}
+        <nav style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <a href="/aide" style={{ fontSize: 13, color: COLOR.inkSoft, textDecoration: "none", fontWeight: 500 }}>
+            Aide
+          </a>
+
+          {isConnected ? (
+            <>
+              <button
+                onClick={goToDashboard}
+                style={{
+                  background: "transparent",
+                  color: COLOR.ink,
+                  border: `1.5px solid ${COLOR.orange}`,
+                  padding: "7px 16px",
+                  borderRadius: 50,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  minWidth: "120px",
+                  textAlign: "center",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = COLOR.orange;
+                  e.currentTarget.style.color = "white";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = COLOR.ink;
+                }}
+              >
+                Tableau de bord
+              </button>
+
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "4px 6px",
+                    borderRadius: 50,
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(33,27,20,0.05)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "50%",
+                      background: COLOR.orange,
+                      color: "white",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      userSelect: "none",
+                    }}
+                  >
+                    {getInitiales(userName)}
+                  </div>
+                  <ChevronDown size={14} color={COLOR.inkSoft} />
+                </button>
+
+                {showProfileMenu && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 42,
+                      right: 0,
+                      background: COLOR.white,
+                      borderRadius: 14,
+                      boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
+                      border: `1px solid ${COLOR.border}`,
+                      minWidth: 160,
+                      overflow: "hidden",
+                      animation: "slideDown 0.2s ease",
+                    }}
+                    onMouseLeave={() => setShowProfileMenu(false)}
+                  >
+                    <div
+                      style={{
+                        padding: "10px 14px",
+                        borderBottom: `1px solid ${COLOR.border}`,
+                        background: COLOR.orangeLight,
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: COLOR.ink, fontSize: 13 }}>{userName}</div>
+                      <div style={{ fontSize: 10, color: COLOR.inkSoft, textTransform: "capitalize" }}>
+                        {profileType === "menage" ? "👨‍👩‍👧‍👦 Famille" :
+                         profileType === "agence" ? "🏢 Agence" :
+                         profileType === "nounou" ? "👩‍🍼 Nounou" : "Utilisateur"}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={onLogout}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                        padding: "10px 14px",
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        fontSize: 13,
+                        color: "#DC2626",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#FEE2E2"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <LogOut size={16} /> Déconnexion
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onConnexion}
+                style={{
+                  background: "transparent",
+                  color: COLOR.inkSoft,
+                  border: `1.5px solid ${COLOR.border}`,
+                  padding: "7px 14px",
+                  borderRadius: 50,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  minWidth: "100px",
+                  textAlign: "center",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = COLOR.orange;
+                  e.currentTarget.style.color = COLOR.orange;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = COLOR.border;
+                  e.currentTarget.style.color = COLOR.inkSoft;
+                }}
+              >
+                Se connecter
+              </button>
+              <button
+                onClick={() => navigate("/inscription")}
+                style={{
+                  background: COLOR.orange,
+                  color: "white",
+                  border: "none",
+                  padding: "7px 14px",
+                  borderRadius: 50,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  minWidth: "100px",
+                  textAlign: "center",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = COLOR.orangeDark)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = COLOR.orange)}
+              >
+                S'inscrire
+              </button>
+            </>
+          )}
+        </nav>
+      </header>
+
+      {/* ================================================================ */}
+      {/* ===== HERO - Option 1 (Image à droite) ===== */}
+      {/* ================================================================ */}
       <section
         style={{
           position: "relative",
-          minHeight: "75vh",
+          minHeight: "80vh",
           display: "flex",
           alignItems: "center",
           overflow: "hidden",
           paddingTop: 80,
         }}
       >
+        {/* Forme décorative */}
         <div
           style={{
             position: "absolute",
@@ -564,121 +557,213 @@ export default function LandingPage() {
           }}
         />
 
-        <div style={{ position: "relative", maxWidth: 1000, margin: "0 auto", padding: "40px 24px", width: "100%" }}>
-          <div style={{ maxWidth: 560, textAlign: "left" }}>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                background: COLOR.white,
-                color: COLOR.ink,
-                fontSize: 12,
-                fontWeight: 700,
-                padding: "7px 16px",
-                borderRadius: 50,
-                marginBottom: 20,
-              }}
-            >
-              <Shield size={13} /> Confiance garantie
-            </div>
-            <h1
-              style={{
-                fontFamily: "'DM Serif Display', serif",
-                fontSize: "clamp(32px, 5vw, 52px)",
-                lineHeight: 1.12,
-                color: COLOR.ink,
-                marginBottom: 16,
-              }}
-            >
-              Trouvez la{" "}
-              <span style={{ position: "relative", display: "inline-block" }}>
-                nounou
-                <DoodleUnderline color={COLOR.orange} />
-              </span>{" "}
-              de confiance
-            </h1>
-            <p
-              style={{
-                fontSize: "clamp(15px, 1.2vw, 18px)",
-                color: COLOR.inkSoft,
-                maxWidth: 440,
-                marginBottom: 32,
-                lineHeight: 1.65,
-              }}
-            >
-              Des nounous vérifiées, près de chez vous, en contact direct WhatsApp avec nos agences partenaires.
-            </p>
-
-            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 28 }}>
-              <button
-                onClick={() => navigate("/inscription")}
+        <div style={{ position: "relative", maxWidth: 1100, margin: "0 auto", padding: "40px 24px", width: "100%" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 50,
+              alignItems: "center",
+            }}
+            className="hero-grid"
+          >
+            {/* ===== TEXTE À GAUCHE ===== */}
+            <div style={{ maxWidth: 560, textAlign: "left" }}>
+              <div
                 style={{
-                  background: COLOR.orange,
-                  color: "white",
-                  border: "none",
-                  padding: "14px 30px",
-                  borderRadius: 50,
-                  fontSize: 15,
-                  fontWeight: 700,
-                  cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = COLOR.orangeDark;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = COLOR.orange;
-                }}
-              >
-                <Search size={17} /> Commencer maintenant
-              </button>
-              <a
-                href="https://wa.me/2250152242299"
-                target="_blank"
-                rel="noreferrer"
-                style={{
                   background: COLOR.white,
                   color: COLOR.ink,
-                  padding: "14px 26px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  padding: "8px 18px",
                   borderRadius: 50,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
+                  marginBottom: 24,
                 }}
               >
-                <MessageCircle size={16} /> Contactez-nous
-              </a>
+                <Shield size={14} /> Confiance garantie
+              </div>
+
+              <h1
+                style={{
+                  fontFamily: "'DM Serif Display', serif",
+                  fontSize: "clamp(38px, 5.5vw, 56px)",
+                  lineHeight: 1.1,
+                  color: COLOR.ink,
+                  marginBottom: 18,
+                }}
+              >
+                Trouvez la{" "}
+                <span style={{ position: "relative", display: "inline-block" }}>
+                  nounou
+                  <DoodleUnderline color={COLOR.orange} />
+                </span>{" "}
+                de confiance
+              </h1>
+
+              <p
+                style={{
+                  fontSize: "clamp(17px, 1.3vw, 20px)",
+                  color: COLOR.inkSoft,
+                  maxWidth: 460,
+                  marginBottom: 32,
+                  lineHeight: 1.7,
+                }}
+              >
+                Des nounous vérifiées, près de chez vous, en contact direct WhatsApp avec nos agences partenaires.
+              </p>
+
+              {/* Boutons */}
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 32 }}>
+                <button
+                  onClick={() => navigate("/inscription")}
+                  style={{
+                    background: COLOR.orange,
+                    color: "white",
+                    border: "none",
+                    padding: "16px 34px",
+                    borderRadius: 50,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 10,
+                    transition: "all 0.2s",
+                    boxShadow: "0 4px 16px rgba(243,129,30,0.25)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = COLOR.orangeDark;
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(243,129,30,0.35)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = COLOR.orange;
+                    e.currentTarget.style.transform = "";
+                    e.currentTarget.style.boxShadow = "0 4px 16px rgba(243,129,30,0.25)";
+                  }}
+                >
+                  <Search size={18} /> Commencer maintenant
+                </button>
+                <a
+                  href="https://wa.me/2250152242299"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    background: COLOR.white,
+                    color: COLOR.ink,
+                    padding: "16px 30px",
+                    borderRadius: 50,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 10,
+                    border: `1.5px solid ${COLOR.border}`,
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = COLOR.orange;
+                    e.currentTarget.style.color = COLOR.orange;
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = COLOR.border;
+                    e.currentTarget.style.color = COLOR.ink;
+                    e.currentTarget.style.transform = "";
+                  }}
+                >
+                  <MessageCircle size={18} /> Contactez-nous
+                </a>
+              </div>
+
+              {/* Badge confiance */}
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 12,
+                  background: COLOR.white,
+                  borderRadius: 14,
+                  padding: "14px 22px",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+                }}
+              >
+                <div style={{ display: "flex", gap: 2, color: COLOR.orange, fontSize: 16 }}>
+                  <Heart size={18} color={COLOR.orange} fill={COLOR.orange} />
+                  <Heart size={18} color={COLOR.orange} fill={COLOR.orange} />
+                  <Heart size={18} color={COLOR.orange} fill={COLOR.orange} />
+                  <Heart size={18} color={COLOR.orange} fill={COLOR.orange} />
+                  <Heart size={18} color={COLOR.orange} />
+                </div>
+                <span style={{ fontSize: 14, color: COLOR.ink }}>
+                  <strong>50+</strong> nounous vérifiées
+                </span>
+              </div>
+
+              {/* Scroll indicator */}
+              <div style={{ color: COLOR.inkSoft, fontSize: 14, marginTop: 36, animation: "bounce 2s infinite" }}>
+                <ChevronDown size={18} style={{ display: "inline" }} /> Découvrez comment ça marche
+              </div>
             </div>
 
+            {/* ===== IMAGE SVG À DROITE ===== */}
             <div
               style={{
-                display: "inline-flex",
+                display: "flex",
+                justifyContent: "center",
                 alignItems: "center",
-                gap: 10,
-                background: COLOR.white,
-                borderRadius: 14,
-                padding: "12px 18px",
+                position: "relative",
               }}
+              className="hero-image"
             >
-              <span style={{ color: COLOR.orange, fontSize: 14 }}>★★★★★</span>
-              <span style={{ fontSize: 13, color: COLOR.ink }}>
-                <strong>50+</strong> nounous vérifiées
-              </span>
-            </div>
-
-            <div style={{ color: COLOR.inkSoft, fontSize: 13, marginTop: 32, animation: "bounce 2s infinite" }}>
-              <ChevronDown size={16} style={{ display: "inline" }} /> Découvrez comment ça marche
+              <img
+                src="/icons/hero-nounou.svg"
+                alt="Nounou Connect illustration"
+                loading="lazy"
+                style={{
+                  maxWidth: "100%",
+                  height: "auto",
+                  maxHeight: 420,
+                  width: "auto",
+                }}
+              />
+              {/* Élément décoratif */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: -10,
+                  right: -10,
+                  width: 80,
+                  height: 80,
+                  borderRadius: "50%",
+                  background: `linear-gradient(135deg, ${COLOR.gradFrom}, ${COLOR.gradTo})`,
+                  opacity: 0.12,
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: -20,
+                  left: -20,
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: COLOR.orange,
+                  opacity: 0.06,
+                }}
+              />
             </div>
           </div>
         </div>
       </section>
+
+      {/* ================================================================ */}
+      {/* ===== RESTE DE LA PAGE ========================================== */}
+      {/* ================================================================ */}
 
       {/* ===== QUI ÊTES-VOUS ? ===== */}
       <section id="qui-etes-vous" style={{ padding: "72px 24px", maxWidth: 1000, margin: "0 auto" }}>
@@ -687,14 +772,14 @@ export default function LandingPage() {
             <h2
               style={{
                 fontFamily: "'DM Serif Display', serif",
-                fontSize: "clamp(26px, 3vw, 34px)",
+                fontSize: "clamp(28px, 3vw, 36px)",
                 color: COLOR.ink,
                 marginBottom: 8,
               }}
             >
               Qui êtes-vous ?
             </h2>
-            <p style={{ color: COLOR.inkSoft, fontSize: 16 }}>Choisissez votre profil pour commencer</p>
+            <p style={{ color: COLOR.inkSoft, fontSize: 17 }}>Choisissez votre profil pour commencer</p>
           </div>
         </FadeUp>
         <div
@@ -705,9 +790,9 @@ export default function LandingPage() {
           }}
         >
           {[
-            { icon: <Home size={30} />, titre: "Famille", desc: "Je cherche une nounou ou une aide pour mon domicile", btn: "Je cherche", profil: "menage" },
-            { icon: <Building2 size={30} />, titre: "Agence", desc: "Je gère un vivier de nounous et je place des professionnelles", btn: "Accéder", profil: "agence" },
-            { icon: <UserCheck size={30} />, titre: "Nounou", desc: "Je m'inscris et les agences de mon quartier me contactent", btn: "Je m'inscris", profil: "nounou" },
+            { icon: <Home size={32} />, titre: "Famille", desc: "Je cherche une nounou ou une aide pour mon domicile", btn: "Je cherche", profil: "menage" },
+            { icon: <Building2 size={32} />, titre: "Agence", desc: "Je gère un vivier de nounous et je place des professionnelles", btn: "Accéder", profil: "agence" },
+            { icon: <UserCheck size={32} />, titre: "Nounou", desc: "Je m'inscris et les agences de mon quartier me contactent", btn: "Je m'inscris", profil: "nounou" },
           ].map((c, i) => (
             <FadeUp key={i} delay={i * 80}>
               <div
@@ -769,21 +854,21 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== COMMENT ÇA MARCHE - ZIGZAG ===== */}
+      {/* ===== COMMENT ÇA MARCHE ===== */}
       <section id="comment" style={{ padding: "72px 24px", maxWidth: 1000, margin: "0 auto" }}>
         <FadeUp>
           <div style={{ textAlign: "center", marginBottom: 56 }}>
             <h2
               style={{
                 fontFamily: "'DM Serif Display', serif",
-                fontSize: "clamp(26px, 3vw, 34px)",
+                fontSize: "clamp(28px, 3vw, 36px)",
                 color: COLOR.ink,
                 marginBottom: 8,
               }}
             >
               Comment ça marche ?
             </h2>
-            <p style={{ color: COLOR.inkSoft, fontSize: 16 }}>5 étapes simples pour trouver votre perle rare</p>
+            <p style={{ color: COLOR.inkSoft, fontSize: 17 }}>5 étapes simples pour trouver votre perle rare</p>
           </div>
         </FadeUp>
 
@@ -824,7 +909,7 @@ export default function LandingPage() {
                     <h3
                       style={{
                         fontFamily: "'DM Serif Display', serif",
-                        fontSize: "clamp(20px, 2vw, 24px)",
+                        fontSize: "clamp(22px, 2vw, 26px)",
                         color: COLOR.ink,
                         marginBottom: 12,
                       }}
@@ -834,7 +919,7 @@ export default function LandingPage() {
                     <p
                       style={{
                         color: COLOR.inkSoft,
-                        fontSize: 15,
+                        fontSize: 16,
                         lineHeight: 1.65,
                         maxWidth: 380,
                       }}
@@ -902,14 +987,14 @@ export default function LandingPage() {
             <h2
               style={{
                 fontFamily: "'DM Serif Display', serif",
-                fontSize: "clamp(26px, 3vw, 34px)",
+                fontSize: "clamp(28px, 3vw, 36px)",
                 color: COLOR.ink,
                 marginBottom: 8,
               }}
             >
               Pourquoi nous faire confiance
             </h2>
-            <p style={{ color: COLOR.inkSoft, fontSize: 16 }}>Ce qui fait vraiment la différence</p>
+            <p style={{ color: COLOR.inkSoft, fontSize: 17 }}>Ce qui fait vraiment la différence</p>
           </div>
         </FadeUp>
 
@@ -1005,7 +1090,7 @@ export default function LandingPage() {
                 <div
                   style={{
                     fontFamily: "'DM Serif Display', serif",
-                    fontSize: "clamp(30px, 4vw, 44px)",
+                    fontSize: "clamp(34px, 4vw, 48px)",
                     color: COLOR.orange,
                     lineHeight: 1,
                   }}
@@ -1016,13 +1101,13 @@ export default function LandingPage() {
                   style={{
                     color: COLOR.ink,
                     fontWeight: 600,
-                    fontSize: "clamp(13px, 1vw, 15px)",
+                    fontSize: "clamp(14px, 1vw, 16px)",
                     marginTop: 8,
                   }}
                 >
                   {s.label}
                 </div>
-                <div style={{ color: COLOR.inkSoft, fontSize: 12, marginTop: 4 }}>{s.sub}</div>
+                <div style={{ color: COLOR.inkSoft, fontSize: 13, marginTop: 4 }}>{s.sub}</div>
               </div>
             </FadeUp>
           ))}
@@ -1046,14 +1131,14 @@ export default function LandingPage() {
                 <h2
                   style={{
                     fontFamily: "'DM Serif Display', serif",
-                    fontSize: "clamp(24px, 3vw, 32px)",
+                    fontSize: "clamp(26px, 3vw, 34px)",
                     color: "#3B2306",
                     marginBottom: 6,
                   }}
                 >
                   Nos nounous
                 </h2>
-                <p style={{ color: "#5C3D0A", fontSize: 14 }}>Vérifiées par leur agence partenaire</p>
+                <p style={{ color: "#5C3D0A", fontSize: 15 }}>Vérifiées par leur agence partenaire</p>
               </div>
 
               <div
@@ -1085,7 +1170,7 @@ export default function LandingPage() {
                         cursor: "pointer",
                         background: activeQuartier === q ? COLOR.orange : "transparent",
                         color: activeQuartier === q ? "white" : COLOR.inkSoft,
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: 600,
                         padding: "8px 18px",
                         borderRadius: 20,
@@ -1216,14 +1301,14 @@ export default function LandingPage() {
             <h2
               style={{
                 fontFamily: "'DM Serif Display', serif",
-                fontSize: "clamp(26px, 3vw, 34px)",
+                fontSize: "clamp(28px, 3vw, 36px)",
                 color: COLOR.ink,
                 marginBottom: 6,
               }}
             >
               Avis des familles
             </h2>
-            <p style={{ color: COLOR.inkSoft, fontSize: 16 }}>Des parents comme vous</p>
+            <p style={{ color: COLOR.inkSoft, fontSize: 17 }}>Des parents comme vous</p>
           </div>
         </FadeUp>
 
@@ -1444,7 +1529,7 @@ export default function LandingPage() {
             <span
               style={{
                 color: "#5C574C",
-                fontSize: "clamp(12px, 1.2vw, 14px)",
+                fontSize: "clamp(13px, 1.2vw, 15px)",
                 fontWeight: 500,
                 padding: "10px 0",
                 whiteSpace: "nowrap",
@@ -1500,7 +1585,7 @@ export default function LandingPage() {
         </FadeUp>
       </section>
 
-      {/* ===== FOOTER - 3 colonnes (sans Infos) ===== */}
+      {/* ===== FOOTER ===== */}
       <footer
         style={{
           background: COLOR.white,
@@ -1521,7 +1606,6 @@ export default function LandingPage() {
             }}
             className="footer-grid"
           >
-            {/* Brand */}
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <Logo size={32} />
@@ -1546,7 +1630,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Liens */}
             <div>
               <h4 style={{ color: COLOR.ink, fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
                 Liens
@@ -1577,7 +1660,6 @@ export default function LandingPage() {
               </a>
             </div>
 
-            {/* Contact */}
             <div>
               <h4 style={{ color: COLOR.ink, fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
                 Contact
@@ -1622,7 +1704,7 @@ export default function LandingPage() {
             border: isConnected ? `1.5px solid ${COLOR.orange}` : "none",
             padding: "14px 32px",
             borderRadius: 50,
-            fontSize: "clamp(13px, 1vw, 15px)",
+            fontSize: "clamp(14px, 1vw, 16px)",
             fontWeight: 700,
             cursor: "pointer",
             boxShadow: isConnected 
@@ -1703,6 +1785,28 @@ export default function LandingPage() {
             width: 28px !important;
             height: 28px !important;
           }
+          .hero-grid {
+            grid-template-columns: 1fr !important;
+            text-align: center !important;
+          }
+          .hero-grid > div:first-child {
+            text-align: center !important;
+            margin: 0 auto !important;
+          }
+          .hero-grid .hero-image {
+            order: -1 !important;
+            max-width: 300px !important;
+            margin: 0 auto !important;
+          }
+          .hero-grid .hero-image img {
+            max-height: 250px !important;
+          }
+          .hero-grid .hero-actions {
+            justify-content: center !important;
+          }
+          .hero-grid .hero-badge {
+            justify-content: center !important;
+          }
           .footer-grid {
             grid-template-columns: 1fr !important;
             text-align: center !important;
@@ -1725,6 +1829,9 @@ export default function LandingPage() {
           }
           .pourquoi-grid > div {
             padding: 14px 10px !important;
+          }
+          .hero-grid .hero-image img {
+            max-height: 200px !important;
           }
         }
 
@@ -1803,6 +1910,9 @@ export default function LandingPage() {
           .nounou-profile-card img {
             width: 60px !important;
             height: 60px !important;
+          }
+          .hero-grid .hero-image img {
+            max-height: 150px !important;
           }
         }
       `}</style>
