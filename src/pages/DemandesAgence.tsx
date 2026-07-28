@@ -79,7 +79,7 @@ function DemandeCard({
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedNounou, setSelectedNounou] = useState("");
+  const [selectedNounou, setSelectedNounou] = useState(demande.nounou_assignee?.id ?? "");
 
   useEffect(() => {
     if (isHighlighted && cardRef.current) {
@@ -181,6 +181,15 @@ function DemandeCard({
             <span className="assignee-label">👩 Nounou assignée</span>
             <span className="assignee-name">{demande.nounou_assignee.nom}</span>
             <span className="assignee-badge"><CheckCircle size={14} /> Assignée</span>
+          </div>
+        )}
+
+        {/* La famille a choisi une nounou directement depuis sa recherche :
+            on le met en avant pour que l'agence n'ait plus qu'à confirmer. */}
+        {demande.statut === "En attente" && demande.nounou_assignee && (
+          <div className="demande-nounou-souhaitee">
+            <span className="assignee-label">🙋 Nounou souhaitée par la famille</span>
+            <span className="assignee-name">{demande.nounou_assignee.nom}</span>
           </div>
         )}
       </div>
@@ -867,6 +876,19 @@ export default function DemandesAgence({
           font-weight: 600;
           color: #065F46;
           margin-left: auto;
+        }
+
+        .demande-nounou-souhaitee {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 14px;
+          background: #FEF3C7;
+          border-radius: 10px;
+        }
+
+        .demande-nounou-souhaitee .assignee-name {
+          color: #92400E;
         }
 
         /* ============================================================ */

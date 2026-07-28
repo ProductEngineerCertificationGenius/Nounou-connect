@@ -5,7 +5,6 @@ import {
   Users,
   UserCheck,
   Inbox,
-  MessageCircle,
   User,
   LogOut,
   MapPin,
@@ -31,10 +30,12 @@ import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import GestionNounous from "./GestionNounous";
 import DemandesAgence from "./DemandesAgence";
+import DemandesAffiliationAgence from "./DemandesAffiliationAgence";
 import ProfilAgence from "./ProfilAgence";
 import { getErrorMessage } from "../lib/errorHandler";
+import { useDemandesAffiliationAgence } from "../hooks/useAffiliation";
 
-type Tab = "accueil" | "nounous" | "demandes" | "profil";
+type Tab = "accueil" | "nounous" | "demandes" | "affiliations" | "profil";
 
 // ============================================================
 // DONNÉES FICTIVES POUR LE DÉVELOPPEMENT
@@ -73,9 +74,6 @@ const MOCK_AVIS = [
   { id: "a3", note: 4, commentaire: "Bonne nounou, mes enfants l'adorent.", nounou: { nom: "Fatou C." }, menage: { nom: "Ménage Kouadio" } },
   { id: "a4", note: 5, commentaire: "Excellente expérience, nounou très professionnelle.", nounou: { nom: "Aminata K." }, menage: { nom: "Ménage Yao" } },
 ];
-
-// Compteurs uniques pour les contacts WhatsApp
-const MOCK_UNIQUE_WHATSAPP = new Set(["+2250700000010", "+2250700000011", "+2250700000014"]);
 
 // ============================================================
 // COMPOSANTS
@@ -410,6 +408,8 @@ export default function EspaceAgence() {
 
   const { data: demandesReal, isLoading: isLoadingDemandesReal } = useAgenceDemandes(agenceId);
 
+  const { data: demandesAffiliationReal } = useDemandesAffiliationAgence(agenceId);
+
   const { data: avisRecentsReal } = useQuery({
     queryKey: ["avis", "agence", agenceId],
     enabled: Boolean(agenceId) && isSupabaseConfigured && !useMock,
@@ -452,14 +452,11 @@ export default function EspaceAgence() {
   const totalNounous = nounous?.length ?? 0;
   const disponibles = nounous?.filter((n) => n.disponible).length ?? 0;
   const totalDemandes = demandes?.length ?? 0;
-  
-  // Contacts WhatsApp uniques
-  const uniqueWhatsAppNumbers = useMock 
-    ? MOCK_UNIQUE_WHATSAPP.size 
-    : new Set((demandes ?? []).map((d) => d.menage_telephone).filter(Boolean)).size;
 
   const demandesEnAttente = (demandes ?? []).filter((d) => d.statut === "En attente");
   const demandesAssignees = (demandes ?? []).filter((d) => d.statut === "Assignée");
+
+  const affiliationsEnAttente = (demandesAffiliationReal ?? []).filter((d) => d.statut === "en_attente");
 
   // ============================================================
   // RENDU SIDEBAR
@@ -475,6 +472,7 @@ export default function EspaceAgence() {
           { id: "accueil", icon: <Home size={20} />, label: "Accueil" },
           { id: "nounous", icon: <Users size={20} />, label: "Nounous" },
           { id: "demandes", icon: <Inbox size={20} />, label: "Demandes" },
+          { id: "affiliations", icon: <Handshake size={20} />, label: "Affiliations" },
           { id: "profil", icon: <User size={20} />, label: "Profil" },
         ].map((item) => (
           <button
@@ -489,6 +487,9 @@ export default function EspaceAgence() {
             <span>{item.label}</span>
             {item.id === "demandes" && demandesEnAttente.length > 0 && (
               <span className="badge-count">{demandesEnAttente.length}</span>
+            )}
+            {item.id === "affiliations" && affiliationsEnAttente.length > 0 && (
+              <span className="badge-count">{affiliationsEnAttente.length}</span>
             )}
           </button>
         ))}
@@ -567,10 +568,10 @@ export default function EspaceAgence() {
             color="#D4B896"
           />
           <StatCard
-            icon={MessageCircle}
-            number={uniqueWhatsAppNumbers}
-            label="Contacts WhatsApp"
-            color="#25D366"
+            icon={Handshake}
+            number={demandesAssignees.length}
+            label="Placements effectués"
+            color="#4A7C59"
           />
         </div>
 
@@ -669,6 +670,8 @@ export default function EspaceAgence() {
         return <GestionNounous agenceId={effectiveAgenceId} onBack={() => setActiveTab("accueil")} />;
       case "demandes":
         return <DemandesAgence agenceId={effectiveAgenceId} onBack={handleBackFromDemandes} demandeId={demandeId} />;
+      case "affiliations":
+        return <DemandesAffiliationAgence agenceId={effectiveAgenceId} onBack={() => setActiveTab("accueil")} />;
       case "profil":
         return <ProfilAgence onBack={() => setActiveTab("accueil")} onLogout={onLogout} />;
       default:
@@ -915,13 +918,13 @@ export default function EspaceAgence() {
         }
 
         .welcome-greeting {
-          font-size: 13px;
+          font-size: 20px;
           color: #78716C;
         }
 
         .welcome-greeting strong {
           color: #1C1917;
-          font-weight: 600;
+          font-weight: 700;
         }
 
         .welcome-date-mini {
