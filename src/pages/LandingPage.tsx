@@ -326,6 +326,7 @@ export default function LandingPage() {
 
       {/* ===== HEADER ===== */}
       {/* ===== HEADER MOBILE - Style Google ===== */}
+{/* ===== HEADER ===== */}
 <header
   style={{
     position: "fixed",
@@ -337,59 +338,207 @@ export default function LandingPage() {
     backdropFilter: scrolled ? "blur(14px)" : "none",
     borderBottom: scrolled ? `1px solid ${COLOR.border}` : "none",
     transition: "all 0.3s ease",
-    padding: "10px 16px",
+    padding: "10px 20px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
   }}
 >
   {/* Logo */}
-  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-    <Logo size={28} />
-    <span style={{ fontSize: 15, fontWeight: 700, color: COLOR.ink }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <Logo size={32} />
+    <span style={{ fontSize: 16, fontWeight: 700, color: COLOR.ink, letterSpacing: "-0.3px" }}>
       Nounou Connect
     </span>
   </div>
 
-  {/* Droite : Avatar + Aide */}
-  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-    <a href="/aide" style={{ fontSize: 12, color: COLOR.inkSoft, textDecoration: "none" }}>
+  {/* Navigation */}
+  <nav style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <a href="/aide" style={{ fontSize: 13, color: COLOR.inkSoft, textDecoration: "none", fontWeight: 500 }}>
       Aide
     </a>
 
-    {/* Avatar avec menu */}
-    <div style={{ position: "relative" }}>
-      <button
-        onClick={() => setShowProfileMenu(!showProfileMenu)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          background: "transparent",
-          border: "none",
-          cursor: "pointer",
-          padding: 0,
-        }}
-      >
-        <div
+    {isConnected ? (
+      <>
+        {/* ✅ Bouton Tableau de bord */}
+        <button
+          onClick={goToDashboard}
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            background: isConnected ? COLOR.orange : "#DDD",
-            color: "white",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 700,
-            fontSize: 12,
-            userSelect: "none",
+            background: "transparent",
+            color: COLOR.ink,
+            border: `1.5px solid ${COLOR.orange}`,
+            padding: "7px 16px",
+            borderRadius: 50,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.2s",
+            minWidth: "120px",
+            textAlign: "center",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = COLOR.orange;
+            e.currentTarget.style.color = "white";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = COLOR.ink;
           }}
         >
-          {isConnected ? getInitiales(userName) : "?"}
+          Tableau de bord
+        </button>
+
+        {/* ✅ Avatar avec menu déroulant */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px 6px",
+              borderRadius: 50,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(33,27,20,0.05)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                background: COLOR.orange,
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: 13,
+                userSelect: "none",
+              }}
+            >
+              {getInitiales(userName)}
+            </div>
+            <ChevronDown size={14} color={COLOR.inkSoft} />
+          </button>
+
+          {/* ✅ Menu déroulant */}
+          {showProfileMenu && (
+            <div
+              style={{
+                position: "absolute",
+                top: 42,
+                right: 0,
+                background: COLOR.white,
+                borderRadius: 14,
+                boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
+                border: `1px solid ${COLOR.border}`,
+                minWidth: 160,
+                overflow: "hidden",
+                animation: "slideDown 0.2s ease",
+                zIndex: 100,
+              }}
+              onMouseLeave={() => setShowProfileMenu(false)}
+            >
+              {/* Infos utilisateur */}
+              <div
+                style={{
+                  padding: "10px 14px",
+                  borderBottom: `1px solid ${COLOR.border}`,
+                  background: COLOR.orangeLight,
+                }}
+              >
+                <div style={{ fontWeight: 600, color: COLOR.ink, fontSize: 13 }}>{userName}</div>
+                <div style={{ fontSize: 10, color: COLOR.inkSoft, textTransform: "capitalize" }}>
+                  {profileType === "menage" ? "👨‍👩‍👧‍👦 Famille" :
+                   profileType === "agence" ? "🏢 Agence" :
+                   profileType === "nounou" ? "👩‍🍼 Nounou" : "Utilisateur"}
+                </div>
+              </div>
+
+              {/* ✅ Déconnexion */}
+              <button
+                onClick={onLogout}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  color: "#DC2626",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#FEE2E2"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <LogOut size={16} /> Déconnexion
+              </button>
+            </div>
+          )}
         </div>
-      </button>
-    </div>
-  </div>
+      </>
+    ) : (
+      /* ✅ NON CONNECTÉ : boutons Se connecter et S'inscrire */
+      <>
+        <button
+          onClick={onConnexion}
+          style={{
+            background: "transparent",
+            color: COLOR.inkSoft,
+            border: `1.5px solid ${COLOR.border}`,
+            padding: "7px 14px",
+            borderRadius: 50,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.2s",
+            minWidth: "100px",
+            textAlign: "center",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = COLOR.orange;
+            e.currentTarget.style.color = COLOR.orange;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = COLOR.border;
+            e.currentTarget.style.color = COLOR.inkSoft;
+          }}
+        >
+          Se connecter
+        </button>
+        <button
+          onClick={() => navigate("/inscription")}
+          style={{
+            background: COLOR.orange,
+            color: "white",
+            border: "none",
+            padding: "7px 14px",
+            borderRadius: 50,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.2s",
+            minWidth: "100px",
+            textAlign: "center",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = COLOR.orangeDark)}
+          onMouseLeave={(e) => (e.currentTarget.style.background = COLOR.orange)}
+        >
+          S'inscrire
+        </button>
+      </>
+    )}
+  </nav>
 </header>
 
       {/* ===== HERO ===== */}
