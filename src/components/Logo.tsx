@@ -1,11 +1,12 @@
+// src/components/Logo.tsx
 export function Logo({ size = 36 }: { size?: number }) {
   return (
     <img
-      src="/logo.png"
+      src="/icons/nounou-icon.svg"
       alt="Nounou Connect"
       width={size}
       height={size}
-      style={{ objectFit: "contain" }}
+      style={{ display: "block" }}
     />
   );
 }

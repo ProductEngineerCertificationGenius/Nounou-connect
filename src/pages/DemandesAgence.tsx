@@ -12,34 +12,33 @@ import {
   UserCheck,
   X,
   Inbox,
+  Baby,
+  Home,
+  Users,
+  Briefcase,
+  CheckCircle,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { getErrorMessage } from "../lib/errorHandler";
 
 // ================================================================
-// Réécriture complète, branchée sur la table réelle `demandes`.
-//
-// Simplifications par rapport au design d'origine (champs absents de
-// notre schéma réel, cf. 0001_schema.sql) :
-//   - `civilite`, `typeGarde`, `ages`, `precisions` du ménage : aucun
-//     de ces champs n'existe sur `demandes` ni `menages` — retirés.
-//   - Statut à 3 valeurs (en_attente/assignee/terminee) -> chez nous,
-//     seuls 2 statuts existent : 'En attente' / 'Assignée' (contrainte
-//     CHECK sur la colonne, cf. 0001_schema.sql). Pas de "terminée".
-// L'assignation passe par la RPC `assigner_nounou` (0003_functions.sql)
-// au lieu d'un simple setState local : elle vérifie côté serveur que
-// la nounou est disponible et appartient à l'agence.
+// TYPES
 // ================================================================
 
 interface DemandeAgence {
   id: string;
-  menage?: { nom: string; telephone: string; quartier: string };
+  menage?: { 
+    id: string;
+    nom: string; 
+    telephone: string; 
+    quartier: string;
+  };
   quartier: string;
   besoin: string;
   temps: string;
   logement: string;
-  statut: "En attente" | "Assignée";
+  statut: "En attente" | "Assignée" | "Refusée";
   date: string;
   nounou_assignee?: { id: string; nom: string };
 }
@@ -47,11 +46,21 @@ interface DemandeAgence {
 interface NounouDispo {
   id: string;
   nom: string;
+  telephone?: string;
+  quartier?: string;
+  disponible?: boolean;
 }
+
+// ================================================================
+// COMPOSANTS
+// ================================================================
 
 function StatutBadge({ statut }: { statut: DemandeAgence["statut"] }) {
   if (statut === "Assignée") {
     return <span className="statut-badge statut-assignee"><UserCheck size={14} /> Assignée</span>;
+  }
+  if (statut === "Refusée") {
+    return <span className="statut-badge statut-refusee"><X size={14} /> Refusée</span>;
   }
   return <span className="statut-badge statut-en-attente"><Clock size={14} /> En attente</span>;
 }
@@ -61,25 +70,29 @@ function DemandeCard({
   isHighlighted,
   onContacter,
   onAssigner,
+  onRefuser,
   nounousDispo,
   isAssigning,
+  isRefusing,
 }: {
   demande: DemandeAgence;
   isHighlighted: boolean;
   onContacter: (telephone?: string) => void;
   onAssigner: (demandeId: string, nounouId: string) => void;
+  onRefuser: (demandeId: string) => void;
   nounousDispo: NounouDispo[];
   isAssigning: boolean;
+  isRefusing: boolean;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedNounou, setSelectedNounou] = useState("");
+  const [selectedNounou, setSelectedNounou] = useState(demande.nounou_assignee?.id ?? "");
 
   useEffect(() => {
     if (isHighlighted && cardRef.current) {
       cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
       cardRef.current.style.transition = "all 0.3s ease";
-      cardRef.current.style.borderColor = "#C2614F";
+      cardRef.current.style.borderColor = "#F3811E";
       cardRef.current.style.boxShadow = "0 0 0 4px rgba(194, 97, 79, 0.15), 0 8px 30px rgba(28, 25, 23, 0.12)";
       setTimeout(() => {
         if (cardRef.current) {
@@ -97,6 +110,13 @@ function DemandeCard({
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  const getBesoinIcon = (besoin: string) => {
+    if (besoin === "Garde d'enfants") return <Baby size={14} />;
+    if (besoin === "Aide ménagère") return <Home size={14} />;
+    if (besoin === "Mixte (Garde + Ménage)") return <Users size={14} />;
+    return <Briefcase size={14} />;
+  };
 
   const handleAssignSubmit = () => {
     if (selectedNounou) {
@@ -123,10 +143,11 @@ function DemandeCard({
       </div>
 
       <div className="demande-card-body">
+        {/* Informations complètes de la demande */}
         <div className="demande-infos">
           <div className="info-item">
             <span className="info-label">Besoin</span>
-            <span className="info-value">{demande.besoin}</span>
+            <span className="info-value">{getBesoinIcon(demande.besoin)} {demande.besoin}</span>
           </div>
           <div className="info-item">
             <span className="info-label">Temps</span>
@@ -136,11 +157,45 @@ function DemandeCard({
             <span className="info-label">Logement</span>
             <span className="info-value">{demande.logement}</span>
           </div>
+          <div className="info-item">
+            <span className="info-label">Quartier</span>
+            <span className="info-value"><MapPin size={14} /> {demande.quartier}</span>
+          </div>
         </div>
 
+        {/* Ménage - coordonnées complètes */}
+        <div className="demande-menage-detail">
+          <div className="detail-label">👤 Informations du ménage</div>
+          <div className="detail-grid">
+            <div className="detail-item">
+              <span className="detail-key">Nom :</span>
+              <span className="detail-value">{demande.menage?.nom || "—"}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-key">Téléphone :</span>
+              <span className="detail-value">{demande.menage?.telephone || "—"}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-key">Quartier :</span>
+              <span className="detail-value">{demande.quartier}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Nounou assignée */}
         {demande.statut === "Assignée" && demande.nounou_assignee && (
           <div className="demande-nounou-assignee">
             <span className="assignee-label">👩 Nounou assignée</span>
+            <span className="assignee-name">{demande.nounou_assignee.nom}</span>
+            <span className="assignee-badge"><CheckCircle size={14} /> Assignée</span>
+          </div>
+        )}
+
+        {/* La famille a choisi une nounou directement depuis sa recherche :
+            on le met en avant pour que l'agence n'ait plus qu'à confirmer. */}
+        {demande.statut === "En attente" && demande.nounou_assignee && (
+          <div className="demande-nounou-souhaitee">
+            <span className="assignee-label">🙋 Nounou souhaitée par la famille</span>
             <span className="assignee-name">{demande.nounou_assignee.nom}</span>
           </div>
         )}
@@ -152,24 +207,39 @@ function DemandeCard({
           <span>{formattedDate}</span>
         </div>
         <div className="demande-actions">
-          {demande.statut === "En attente" && (
+          {demande.statut === "En attente" ? (
             <>
               <button className="btn-contacter" onClick={() => onContacter(demande.menage?.telephone)}>
                 <MessageCircle size={14} /> Contacter
+              </button>
+              <button
+                className="btn-refuser"
+                onClick={() => {
+                  if (window.confirm("Refuser cette demande ? Cette action est définitive.")) {
+                    onRefuser(demande.id);
+                  }
+                }}
+                disabled={isRefusing}
+              >
+                <X size={14} /> Refuser
               </button>
               <button className="btn-assigner" onClick={() => setShowAssignModal(true)}>
                 <UserCheck size={14} /> Assigner
               </button>
             </>
-          )}
-          {demande.statut === "Assignée" && demande.nounou_assignee && (
+          ) : demande.statut === "Refusée" ? (
+            <span className="nounou-assignee-label statut-refusee-label">
+              <X size={14} /> Demande refusée
+            </span>
+          ) : (
             <span className="nounou-assignee-label">
-              <UserCheck size={14} /> {demande.nounou_assignee.nom}
+              <UserCheck size={14} /> {demande.nounou_assignee?.nom || "Assignée"}
             </span>
           )}
         </div>
       </div>
 
+      {/* Modal d'assignation */}
       {showAssignModal && (
         <div className="assign-modal-overlay" onClick={() => setShowAssignModal(false)}>
           <div className="assign-modal" onClick={(e) => e.stopPropagation()}>
@@ -179,22 +249,49 @@ function DemandeCard({
             </div>
             <div className="assign-modal-body">
               <p>Choisissez une nounou disponible pour cette demande</p>
-              <select value={selectedNounou} onChange={(e) => setSelectedNounou(e.target.value)} className="assign-select">
+              
+              {/* Infos de la demande dans le modal */}
+              <div className="modal-demande-info">
+                <div className="modal-info-item">
+                  <span className="modal-info-label">👤 Ménage</span>
+                  <span className="modal-info-value">{demande.menage?.nom || "—"}</span>
+                </div>
+                <div className="modal-info-item">
+                  <span className="modal-info-label">📍 Quartier</span>
+                  <span className="modal-info-value">{demande.quartier}</span>
+                </div>
+                <div className="modal-info-item">
+                  <span className="modal-info-label">📋 Besoin</span>
+                  <span className="modal-info-value">{demande.besoin}</span>
+                </div>
+              </div>
+
+              <select 
+                value={selectedNounou} 
+                onChange={(e) => setSelectedNounou(e.target.value)} 
+                className="assign-select"
+              >
                 <option value="">Sélectionner une nounou</option>
                 {nounousDispo.map((n) => (
-                  <option key={n.id} value={n.id}>{n.nom}</option>
+                  <option key={n.id} value={n.id}>
+                    {n.nom} {n.quartier ? `- ${n.quartier}` : ""}
+                  </option>
                 ))}
               </select>
               {nounousDispo.length === 0 && (
-                <p style={{ fontSize: 12, color: "#78716C", marginTop: 8 }}>
-                  Aucune nounou disponible actuellement dans votre vivier.
+                <p className="no-nounou-message">
+                  ⚠️ Aucune nounou disponible actuellement dans votre vivier.
                 </p>
               )}
             </div>
             <div className="assign-modal-footer">
               <button className="btn-cancel-assign" onClick={() => setShowAssignModal(false)}>Annuler</button>
-              <button className="btn-confirm-assign" onClick={handleAssignSubmit} disabled={!selectedNounou || isAssigning}>
-                {isAssigning ? "Assignation..." : "Assigner"}
+              <button 
+                className="btn-confirm-assign" 
+                onClick={handleAssignSubmit} 
+                disabled={!selectedNounou || isAssigning}
+              >
+                {isAssigning ? "Assignation..." : "✅ Assigner"}
               </button>
             </div>
           </div>
@@ -219,15 +316,16 @@ export default function DemandesAgence({
 }) {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatut, setFilterStatut] = useState<"tous" | "En attente" | "Assignée">("tous");
+  const [filterStatut, setFilterStatut] = useState<"tous" | "En attente" | "Assignée" | "Refusée">("tous");
 
-  const { data: demandes } = useQuery({
+  // Récupérer toutes les demandes
+  const { data: demandes, isLoading } = useQuery({
     queryKey: ["demandes", "agence", agenceId],
     enabled: Boolean(agenceId) && isSupabaseConfigured,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("demandes")
-        .select("*, menage:menages(nom, telephone), nounou_assignee:nounous!nounou_assignee_id(id, nom)")
+        .select("*, menage:menages(id, nom, telephone, quartier), nounou_assignee:nounous!nounou_assignee_id(id, nom)")
         .eq("agence_id", agenceId!)
         .order("date", { ascending: false });
       if (error) throw error;
@@ -235,13 +333,14 @@ export default function DemandesAgence({
     },
   });
 
+  // Récupérer les nounous disponibles
   const { data: nounousDispo } = useQuery({
     queryKey: ["nounous", "agence", agenceId, "disponibles"],
     enabled: Boolean(agenceId) && isSupabaseConfigured,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("nounous")
-        .select("id, nom")
+        .select("id, nom, telephone, quartier")
         .eq("agence_id", agenceId!)
         .eq("disponible", true);
       if (error) throw error;
@@ -249,6 +348,7 @@ export default function DemandesAgence({
     },
   });
 
+  // Mutation pour assigner une nounou
   const assignerNounou = useMutation({
     mutationFn: async ({ demandeIdToAssign, nounouId }: { demandeIdToAssign: string; nounouId: string }) => {
       const { error } = await supabase.rpc("assigner_nounou", {
@@ -264,6 +364,21 @@ export default function DemandesAgence({
     onError: (err) => alert(getErrorMessage(err)),
   });
 
+  // Mutation pour refuser une demande
+  const refuserDemande = useMutation({
+    mutationFn: async (demandeIdToRefuse: string) => {
+      const { error } = await supabase
+        .from("demandes")
+        .update({ statut: "Refusée" })
+        .eq("id", demandeIdToRefuse);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["demandes", "agence", agenceId] });
+    },
+    onError: (err) => alert(getErrorMessage(err)),
+  });
+
   const handleContacter = (telephone?: string) => {
     if (!telephone) return;
     window.open(`https://wa.me/${telephone.replace(/[^0-9]/g, "")}`, "_blank");
@@ -273,24 +388,42 @@ export default function DemandesAgence({
     assignerNounou.mutate({ demandeIdToAssign, nounouId });
   };
 
+  const handleRefuser = (demandeIdToRefuse: string) => {
+    refuserDemande.mutate(demandeIdToRefuse);
+  };
+
+  // Filtrage des demandes
   const filteredDemandes = (demandes ?? [])
     .filter((d) => {
-      const matchSearch =
+      const matchSearch = 
         (d.menage?.nom || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         d.quartier.toLowerCase().includes(searchTerm.toLowerCase()) ||
         d.besoin.toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatut = filterStatut === "tous" || d.statut === filterStatut;
       return matchSearch && matchStatut;
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
 
+  // Trouver l'index de la demande à mettre en surbrillance
   const highlightIndex = demandeId ? filteredDemandes.findIndex((d) => d.id === demandeId) : -1;
 
+  // Statistiques
   const stats = {
     total: (demandes ?? []).length,
     enAttente: (demandes ?? []).filter((d) => d.statut === "En attente").length,
     assignees: (demandes ?? []).filter((d) => d.statut === "Assignée").length,
+    refusees: (demandes ?? []).filter((d) => d.statut === "Refusée").length,
   };
+
+  if (isLoading) {
+    return (
+      <div className="demandes-agence">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Chargement des demandes...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="demandes-agence">
@@ -298,12 +431,17 @@ export default function DemandesAgence({
         <div className="header-left">
           <button className="btn-back" onClick={onBack}><ChevronLeft size={20} /></button>
           <Logo size={28} />
-          <span className="header-title">📩 Demandes reçues</span>
+          <span className="header-title">📩 Demandes</span>
           <span className="header-count">{stats.total} demandes</span>
         </div>
       </div>
 
       <div className="stats-row">
+        <div className="stat-item">
+          <span className="stat-number">{stats.total}</span>
+          <span className="stat-label">📋 Total</span>
+        </div>
+        <div className="stat-divider" />
         <div className="stat-item">
           <span className="stat-number">{stats.enAttente}</span>
           <span className="stat-label">⏳ En attente</span>
@@ -312,6 +450,11 @@ export default function DemandesAgence({
         <div className="stat-item">
           <span className="stat-number">{stats.assignees}</span>
           <span className="stat-label">✅ Assignées</span>
+        </div>
+        <div className="stat-divider" />
+        <div className="stat-item">
+          <span className="stat-number">{stats.refusees}</span>
+          <span className="stat-label">🚫 Refusées</span>
         </div>
       </div>
 
@@ -328,12 +471,13 @@ export default function DemandesAgence({
         <div className="filter-group">
           <select
             value={filterStatut}
-            onChange={(e) => setFilterStatut(e.target.value as "tous" | "En attente" | "Assignée")}
+            onChange={(e) => setFilterStatut(e.target.value as "tous" | "En attente" | "Assignée" | "Refusée")}
             className="filter-select"
           >
             <option value="tous">📊 Tous statuts</option>
             <option value="En attente">⏳ En attente</option>
             <option value="Assignée">✅ Assignée</option>
+            <option value="Refusée">🚫 Refusée</option>
           </select>
         </div>
       </div>
@@ -347,8 +491,10 @@ export default function DemandesAgence({
               isHighlighted={index === highlightIndex}
               onContacter={handleContacter}
               onAssigner={handleAssigner}
+              onRefuser={handleRefuser}
               nounousDispo={nounousDispo ?? []}
               isAssigning={assignerNounou.isPending}
+              isRefusing={refuserDemande.isPending}
             />
           ))
         ) : (
@@ -367,6 +513,32 @@ export default function DemandesAgence({
         .demandes-agence {
           padding: 0;
           font-family: "Inter", sans-serif;
+        }
+
+        /* ============================================================ */
+        /* LOADING                                                      */
+        /* ============================================================ */
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 60px 20px;
+          color: #8A867A;
+        }
+
+        .loading-spinner {
+          width: 40px;
+          height: 40px;
+          border: 4px solid #FFF3D6;
+          border-top-color: #F3811E;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
 
         /* ============================================================ */
@@ -390,7 +562,7 @@ export default function DemandesAgence({
         .btn-back {
           background: transparent;
           border: none;
-          color: #78716C;
+          color: #8A867A;
           cursor: pointer;
           padding: 4px;
           border-radius: 8px;
@@ -401,20 +573,20 @@ export default function DemandesAgence({
         }
 
         .btn-back:hover {
-          background: #F2D6D8;
-          color: #C2614F;
+          background: #FFF3D6;
+          color: #F3811E;
         }
 
         .header-title {
           font-size: 18px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .header-count {
           font-size: 13px;
-          color: #78716C;
-          background: #F5F0EB;
+          color: #8A867A;
+          background: #F1F0EC;
           padding: 2px 12px;
           border-radius: 50px;
         }
@@ -443,12 +615,12 @@ export default function DemandesAgence({
         .stat-number {
           font-size: 20px;
           font-weight: 800;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .stat-label {
           font-size: 11px;
-          color: #78716C;
+          color: #8A867A;
           font-weight: 500;
         }
 
@@ -482,12 +654,12 @@ export default function DemandesAgence({
         }
 
         .search-bar:focus-within {
-          border-color: #C2614F;
+          border-color: #F3811E;
           box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.08);
         }
 
         .search-bar svg {
-          color: #78716C;
+          color: #8A867A;
           flex-shrink: 0;
         }
 
@@ -496,13 +668,13 @@ export default function DemandesAgence({
           border: none;
           background: transparent;
           font-size: 14px;
-          color: #1C1917;
+          color: #211B14;
           outline: none;
           font-family: inherit;
         }
 
         .search-bar input::placeholder {
-          color: #78716C;
+          color: #8A867A;
           opacity: 0.6;
         }
 
@@ -518,7 +690,7 @@ export default function DemandesAgence({
           border-radius: 12px;
           background: white;
           font-size: 13px;
-          color: #1C1917;
+          color: #211B14;
           outline: none;
           cursor: pointer;
           transition: all 0.25s ease;
@@ -527,7 +699,7 @@ export default function DemandesAgence({
         }
 
         .filter-select:focus {
-          border-color: #C2614F;
+          border-color: #F3811E;
           box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.08);
         }
 
@@ -558,7 +730,7 @@ export default function DemandesAgence({
         }
 
         .demande-card.highlighted {
-          border-color: #C2614F;
+          border-color: #F3811E;
           box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.15), 0 8px 30px rgba(28, 25, 23, 0.12);
           animation: pulse-border 0.6s ease;
         }
@@ -588,7 +760,7 @@ export default function DemandesAgence({
           width: 44px;
           height: 44px;
           border-radius: 50%;
-          background: #F2D6D8;
+          background: #FFF3D6;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -599,7 +771,7 @@ export default function DemandesAgence({
         .demande-menage h4 {
           font-size: 16px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
           margin: 0 0 2px 0;
         }
 
@@ -607,7 +779,7 @@ export default function DemandesAgence({
           display: flex;
           gap: 12px;
           font-size: 12px;
-          color: #78716C;
+          color: #8A867A;
           flex-wrap: wrap;
         }
 
@@ -641,9 +813,9 @@ export default function DemandesAgence({
           color: #065F46;
         }
 
-        .statut-terminee {
-          background: #F3F4F6;
-          color: #6B7280;
+        .statut-refusee {
+          background: #FEE2E2;
+          color: #991B1B;
         }
 
         /* ============================================================ */
@@ -652,10 +824,10 @@ export default function DemandesAgence({
         .demande-card-body {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 12px;
           padding: 12px 0;
-          border-top: 1px solid #F5F0EB;
-          border-bottom: 1px solid #F5F0EB;
+          border-top: 1px solid #F1F0EC;
+          border-bottom: 1px solid #F1F0EC;
         }
 
         .demande-infos {
@@ -673,7 +845,7 @@ export default function DemandesAgence({
         .info-label {
           font-size: 10px;
           font-weight: 600;
-          color: #78716C;
+          color: #8A867A;
           text-transform: uppercase;
           letter-spacing: 0.3px;
         }
@@ -681,65 +853,97 @@ export default function DemandesAgence({
         .info-value {
           font-size: 13px;
           font-weight: 600;
-          color: #1C1917;
-        }
-
-        .info-value.type-garde {
-          color: #C2614F;
-        }
-
-        .demande-ages,
-        .demande-precisions,
-        .demande-nounou-assignee,
-        .demande-nounou-terminee {
+          color: #211B14;
           display: flex;
-          flex-direction: column;
+          align-items: center;
           gap: 4px;
         }
 
-        .ages-label,
-        .precisions-label,
-        .assignee-label,
-        .terminee-label {
+        /* ============================================================ */
+        /* MÉNAGE DÉTAIL                                                */
+        /* ============================================================ */
+        .demande-menage-detail {
+          background: #F1F0EC;
+          border-radius: 10px;
+          padding: 10px 14px;
+        }
+
+        .detail-label {
           font-size: 11px;
           font-weight: 600;
-          color: #78716C;
+          color: #8A867A;
           text-transform: uppercase;
           letter-spacing: 0.3px;
+          margin-bottom: 6px;
         }
 
-        .ages-tags,
-        .precisions-tags {
+        .detail-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 4px 16px;
+        }
+
+        .detail-item {
           display: flex;
-          gap: 6px;
-          flex-wrap: wrap;
+          gap: 4px;
+          font-size: 13px;
         }
 
-        .age-tag {
+        .detail-key {
+          color: #8A867A;
+          font-weight: 500;
+        }
+
+        .detail-value {
+          color: #211B14;
+          font-weight: 600;
+        }
+
+        /* ============================================================ */
+        /* NOUNOU ASSIGNÉE                                              */
+        /* ============================================================ */
+        .demande-nounou-assignee {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 14px;
+          background: #D1FAE5;
+          border-radius: 10px;
+        }
+
+        .assignee-label {
           font-size: 12px;
-          padding: 2px 12px;
-          border-radius: 50px;
-          background: #F2D6D8;
-          color: #1C1917;
+          font-weight: 600;
+          color: #8A867A;
         }
 
-        .precision-tag {
-          font-size: 12px;
-          padding: 2px 12px;
-          border-radius: 50px;
-          background: #F5F0EB;
-          color: #6B5E4F;
-        }
-
-        .assignee-name,
-        .terminee-name {
+        .assignee-name {
           font-size: 14px;
           font-weight: 700;
-          color: #4A7C59;
+          color: #065F46;
         }
 
-        .terminee-name {
-          color: #6B7280;
+        .assignee-badge {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          color: #065F46;
+          margin-left: auto;
+        }
+
+        .demande-nounou-souhaitee {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 14px;
+          background: #FEF3C7;
+          border-radius: 10px;
+        }
+
+        .demande-nounou-souhaitee .assignee-name {
+          color: #92400E;
         }
 
         /* ============================================================ */
@@ -759,7 +963,7 @@ export default function DemandesAgence({
           align-items: center;
           gap: 6px;
           font-size: 12px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         .demande-actions {
@@ -794,7 +998,7 @@ export default function DemandesAgence({
           align-items: center;
           gap: 6px;
           padding: 6px 16px;
-          background: #C2614F;
+          background: #F3811E;
           color: white;
           border: none;
           border-radius: 50px;
@@ -805,7 +1009,35 @@ export default function DemandesAgence({
         }
 
         .btn-assigner:hover {
-          background: #B25545;
+          background: #C1631B;
+        }
+
+        .btn-refuser {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 16px;
+          background: #E63946;
+          color: white;
+          border: none;
+          border-radius: 50px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-refuser:hover {
+          background: #C62A38;
+        }
+
+        .btn-refuser:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .statut-refusee-label {
+          color: #991B1B;
         }
 
         .nounou-assignee-label {
@@ -815,18 +1047,6 @@ export default function DemandesAgence({
           padding: 6px 16px;
           background: #D1FAE5;
           color: #065F46;
-          border-radius: 50px;
-          font-size: 12px;
-          font-weight: 600;
-        }
-
-        .terminee-label-simple {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 6px 16px;
-          background: #F3F4F6;
-          color: #6B7280;
           border-radius: 50px;
           font-size: 12px;
           font-weight: 600;
@@ -853,7 +1073,7 @@ export default function DemandesAgence({
         .assign-modal {
           background: white;
           border-radius: 16px;
-          max-width: 400px;
+          max-width: 480px;
           width: 100%;
           padding: 24px;
           animation: slideUp 0.3s ease;
@@ -874,13 +1094,13 @@ export default function DemandesAgence({
         .assign-modal-header h4 {
           font-size: 18px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .assign-modal-close {
           background: transparent;
           border: none;
-          color: #78716C;
+          color: #8A867A;
           cursor: pointer;
           padding: 4px;
           border-radius: 8px;
@@ -888,24 +1108,54 @@ export default function DemandesAgence({
         }
 
         .assign-modal-close:hover {
-          background: #F5F0EB;
-          color: #1C1917;
+          background: #F1F0EC;
+          color: #211B14;
         }
 
         .assign-modal-body p {
           font-size: 14px;
-          color: #78716C;
+          color: #8A867A;
           margin-bottom: 12px;
+        }
+
+        .modal-demande-info {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 8px;
+          background: #F1F0EC;
+          border-radius: 10px;
+          padding: 10px 14px;
+          margin-bottom: 14px;
+        }
+
+        .modal-info-item {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .modal-info-label {
+          font-size: 9px;
+          font-weight: 600;
+          color: #8A867A;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+
+        .modal-info-value {
+          font-size: 12px;
+          font-weight: 600;
+          color: #211B14;
         }
 
         .assign-select {
           width: 100%;
           padding: 12px 16px;
-          border: 1.5px solid #F2D6D8;
+          border: 1.5px solid #FFF3D6;
           border-radius: 12px;
           font-size: 14px;
-          background: #FAF7F2;
-          color: #1C1917;
+          background: #F1F0EC;
+          color: #211B14;
           outline: none;
           transition: all 0.25s ease;
           font-family: inherit;
@@ -914,9 +1164,15 @@ export default function DemandesAgence({
         }
 
         .assign-select:focus {
-          border-color: #C2614F;
+          border-color: #F3811E;
           background: white;
           box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.06);
+        }
+
+        .no-nounou-message {
+          font-size: 12px;
+          color: #E87A7A;
+          margin-top: 8px;
         }
 
         .assign-modal-footer {
@@ -929,23 +1185,23 @@ export default function DemandesAgence({
         .btn-cancel-assign {
           padding: 10px 20px;
           background: transparent;
-          border: 1.5px solid #F2D6D8;
+          border: 1.5px solid #FFF3D6;
           border-radius: 50px;
           font-size: 14px;
           font-weight: 600;
-          color: #78716C;
+          color: #8A867A;
           cursor: pointer;
           transition: all 0.25s ease;
         }
 
         .btn-cancel-assign:hover {
-          border-color: #C2614F;
-          color: #C2614F;
+          border-color: #F3811E;
+          color: #F3811E;
         }
 
         .btn-confirm-assign {
           padding: 10px 24px;
-          background: #C2614F;
+          background: #F3811E;
           border: none;
           border-radius: 50px;
           font-size: 14px;
@@ -956,7 +1212,7 @@ export default function DemandesAgence({
         }
 
         .btn-confirm-assign:hover:not(:disabled) {
-          background: #B25545;
+          background: #C1631B;
           box-shadow: 0 4px 16px rgba(194, 97, 79, 0.3);
         }
 
@@ -971,22 +1227,22 @@ export default function DemandesAgence({
         .empty-state {
           text-align: center;
           padding: 60px 20px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         .empty-state svg {
-          color: #D4B896;
+          color: #C1631B;
           margin-bottom: 12px;
         }
 
         .empty-state h3 {
           font-size: 18px;
-          color: #1C1917;
+          color: #211B14;
           margin-bottom: 4px;
         }
 
         /* ============================================================ */
-        /* RESPONSIVE - MOBILE                                          */
+        /* RESPONSIVE                                                   */
         /* ============================================================ */
         @media (max-width: 768px) {
           .demande-infos {
@@ -1013,8 +1269,8 @@ export default function DemandesAgence({
 
           .btn-contacter,
           .btn-assigner,
-          .nounou-assignee-label,
-          .terminee-label-simple {
+          .btn-refuser,
+          .nounou-assignee-label {
             flex: 1;
             justify-content: center;
           }
@@ -1043,6 +1299,14 @@ export default function DemandesAgence({
           .assign-modal {
             padding: 20px;
             margin: 10px;
+          }
+
+          .detail-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .modal-demande-info {
+            grid-template-columns: 1fr;
           }
         }
 
@@ -1094,8 +1358,8 @@ export default function DemandesAgence({
 
           .btn-contacter,
           .btn-assigner,
-          .nounou-assignee-label,
-          .terminee-label-simple {
+          .btn-refuser,
+          .nounou-assignee-label {
             width: 100%;
             justify-content: center;
           }

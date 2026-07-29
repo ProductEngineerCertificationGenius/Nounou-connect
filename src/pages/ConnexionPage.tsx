@@ -1,12 +1,12 @@
 // src/pages/ConnexionPage.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Lock } from "lucide-react";
+import { Eye, EyeOff, Lock, User, MessageCircle, Building2 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useConnexion, useDemanderResetPin } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
-import type { ProfileType } from "../store/useAuthStore";
+import { useAuthStore, type ProfileType } from "../store/useAuthStore";
 
 const PROFILE_LANDING: Record<ProfileType, string> = {
   menage: "/espace-menage",
@@ -14,88 +14,164 @@ const PROFILE_LANDING: Record<ProfileType, string> = {
   nounou: "/espace-nounou",
 };
 
-/* ================================================================ */
-/* ===== PAGE DE CONNEXION (branchée sur Supabase Auth réel) ======= */
-/* ================================================================ */
-//
-// Réécriture complète du flux d'origine : chez Noah, le PIN n'existait
-// que pour l'agence, en 2ᵉ facteur après un OTP envoyé à CHAQUE
-// connexion. Notre architecture réelle utilise le PIN comme mode de
-// connexion principal pour les 3 profils (menage/agence/nounou), et
-// l'OTP uniquement à l'activation du compte (géré par InscriptionPage)
-// et pour réinitialiser un PIN oublié (géré ici).
 export default function ConnexionPage() {
   const navigate = useNavigate();
-  const [screen, setScreen] = useState<"login" | "forgot-phone">("login");
+  const { setNounouMode, setNounouIdentifiant, setProfileType } = useAuthStore();
+
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState(["", "", "", ""]);
   const [telephone, setTelephone] = useState("");
   const [selectedProfil, setSelectedProfil] = useState<ProfileType>("menage");
   const [errorMessage, setErrorMessage] = useState("");
+  const [nounouMode, setNounouModeLocal] = useState<"avec-agence" | "sans-agence" | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const isNounou = selectedProfil === "nounou";
+  const isMenageOrAgence = selectedProfil === "menage" || selectedProfil === "agence";
+  const isMenage = selectedProfil === "menage";
+  const isAgence = selectedProfil === "agence";
 
   const connexion = useConnexion();
   const demanderReset = useDemanderResetPin();
 
-  // ===== GESTIONNAIRES DE SAISIE CHIFFRE PAR CHIFFRE =====
-  const makeDigitHandler = (
-    values: string[],
-    setValues: (v: string[]) => void,
-    prefix: string,
-    length: number
-  ) => (index: number, value: string) => {
+  const handlePinChange = (index: number, value: string) => {
     if (value.length > 1 || !/^\d*$/.test(value)) return;
-    const next = [...values];
-    next[index] = value;
-    setValues(next);
-    if (value && index < length - 1) {
-      document.getElementById(`${prefix}-${index + 1}`)?.focus();
+    const newPin = [...pin];
+    newPin[index] = value;
+    setPin(newPin);
+    if (value && index < PIN_LENGTH - 1) {
+      document.getElementById(`pin-${index + 1}`)?.focus();
     }
   };
 
-  const makeKeyDownHandler = (values: string[], prefix: string) => (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (e.key === "Backspace" && !values[index] && index > 0) {
-      document.getElementById(`${prefix}-${index - 1}`)?.focus();
+  const handlePinKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !pin[index] && index > 0) {
+      document.getElementById(`pin-${index - 1}`)?.focus();
     }
   };
 
-  const handlePinChange = makeDigitHandler(pin, setPin, "pin", PIN_LENGTH);
-  const handlePinKeyDown = makeKeyDownHandler(pin, "pin");
-
-  // ===== ÉTAPE 1 : CONNEXION PAR TÉLÉPHONE + PIN (sans SMS) =====
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
+    setIsLoading(true);
+
     try {
-      const { profileType } = await connexion.mutateAsync({
+      // ---- CAS NOUNOU ----
+      if (isNounou) {
+        // ✅ Nounou : téléphone + PIN (pas d'identifiant)
+        if (!telephone || telephone.length < 8) {
+          setErrorMessage("Veuillez entrer votre numéro de téléphone.");
+          setIsLoading(false);
+          return;
+        }
+
+        const pinCode = pin.join("");
+        if (pinCode.length !== PIN_LENGTH) {
+          setErrorMessage(`Veuillez entrer les ${PIN_LENGTH} chiffres du PIN.`);
+          setIsLoading(false);
+          return;
+        }
+
+        const result = await connexion.mutateAsync({
+          phone: telephone,
+          pin: pinCode,
+          profileType: "nounou",
+        });
+
+        if (result.row) {
+          // ✅ On stocke le mode (avec ou sans agence) selon ce que l'utilisateur a choisi
+          setNounouMode(nounouMode); // "avec-agence" ou "sans-agence"
+          setNounouIdentifiant(null); // ❌ Pas d'identifiant
+          setProfileType("nounou");
+          navigate("/");
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // ---- CAS MÉNAGE / AGENCE ----
+      const pinCode = pin.join("");
+      if (pinCode.length !== PIN_LENGTH) {
+        setErrorMessage(`Veuillez entrer les ${PIN_LENGTH} chiffres du PIN.`);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!telephone || telephone.length < 8) {
+        setErrorMessage("Veuillez entrer votre numéro de téléphone.");
+        setIsLoading(false);
+        return;
+      }
+
+      const result = await connexion.mutateAsync({
         phone: telephone,
-        pin: pin.join(""),
+        pin: pinCode,
         profileType: selectedProfil,
       });
-      navigate(PROFILE_LANDING[profileType]);
+
+      if (result.row) {
+        setProfileType(selectedProfil);
+        navigate("/");
+      }
     } catch (err) {
       setErrorMessage(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // ===== PIN OUBLIÉ : la vérification SMS a été retirée =====
-  const handleForgotPhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleResetProfil = () => {
+    setSelectedProfil("menage");
+    setNounouModeLocal(null);
     setErrorMessage("");
-    try {
-      await demanderReset.mutateAsync(telephone);
-      setScreen("login");
-      setErrorMessage(
-        "La vérification par SMS a été retirée. Si vous avez perdu votre PIN, veuillez vous reconnecter avec votre compte existant ou créer un nouveau compte."
-      );
-    } catch (err) {
-      setErrorMessage(getErrorMessage(err));
-    }
+  };
+
+  const handleWhatsAppContact = () => {
+    window.open("https://wa.me/2250152242299", "_blank");
   };
 
   const goToInscription = () => navigate("/inscription");
+
+  // ===== RENDU SÉLECTEUR NOUNOU =====
+  const renderNounouChoice = () => (
+    <div className="nounou-choice">
+      <p className="nounou-choice-title">👩‍🍼 Vous êtes nounou ?</p>
+      <p className="nounou-choice-subtitle">Choisissez votre situation</p>
+      <div className="nounou-choice-buttons">
+        <button
+          type="button"
+          className="nounou-choice-btn with-agence"
+          onClick={() => {
+            setNounouModeLocal("avec-agence");
+            setErrorMessage("");
+          }}
+        >
+          <Building2 size={24} />
+          <span>J'ai une agence</span>
+          <small>Je me connecte avec mon téléphone et mon PIN</small>
+        </button>
+        <button
+          type="button"
+          className="nounou-choice-btn without-agence"
+          onClick={() => {
+            setNounouModeLocal("sans-agence");
+            setErrorMessage("");
+          }}
+        >
+          <User size={24} />
+          <span>Je n'ai pas encore d'agence</span>
+          <small>Je me connecte avec mon téléphone et mon PIN</small>
+        </button>
+      </div>
+      <button
+        type="button"
+        className="nounou-choice-back"
+        onClick={handleResetProfil}
+      >
+        ← Retour
+      </button>
+    </div>
+  );
 
   return (
     <div className="connexion-page">
@@ -118,35 +194,21 @@ export default function ConnexionPage() {
               <p style={{ color: "#E87A7A", fontSize: 14, marginBottom: 16 }}>{errorMessage}</p>
             )}
 
-            {/* ===== CONNEXION NORMALE : téléphone + PIN, 3 profils ===== */}
-            {screen === "login" && (
-              <>
-                <h2 className="connexion-title">Se connecter</h2>
-                <p className="connexion-subtitle">Entrez votre téléphone et votre PIN</p>
+            {isNounou && nounouMode === null && renderNounouChoice()}
 
-                <div className="profil-selector">
-                  <button
-                    type="button"
-                    className={`profil-option ${selectedProfil === "menage" ? "active" : ""}`}
-                    onClick={() => setSelectedProfil("menage")}
-                  >
-                    🏠 Famille
-                  </button>
-                  <button
-                    type="button"
-                    className={`profil-option ${selectedProfil === "agence" ? "active" : ""}`}
-                    onClick={() => setSelectedProfil("agence")}
-                  >
-                    🏢 Agence
-                  </button>
-                  <button
-                    type="button"
-                    className={`profil-option ${selectedProfil === "nounou" ? "active" : ""}`}
-                    onClick={() => setSelectedProfil("nounou")}
-                  >
-                    👩‍🍼 Nounou
-                  </button>
-                </div>
+            {isNounou && nounouMode !== null && (
+              <>
+                <button
+                  type="button"
+                  className="back-to-choice"
+                  onClick={() => setNounouModeLocal(null)}
+                >
+                  ← Retour
+                </button>
+                <h2 className="connexion-title">🔑 Connexion nounou</h2>
+                <p className="connexion-subtitle">
+                  Entrez votre téléphone et votre PIN pour accéder à votre espace
+                </p>
 
                 <form onSubmit={handleLoginSubmit} className="connexion-form">
                   <div className="form-group">
@@ -159,6 +221,7 @@ export default function ConnexionPage() {
                       required
                     />
                   </div>
+
                   <div className="form-group">
                     <label className="pin-label">
                       <Lock size={16} className="pin-icon" />
@@ -184,33 +247,68 @@ export default function ConnexionPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="forgot-password">
-                    <a href="#" onClick={(e) => { e.preventDefault(); setErrorMessage(""); setScreen("forgot-phone"); }}>
-                      PIN oublié ?
-                    </a>
-                  </div>
-                  <button type="submit" className="submit-button" disabled={connexion.isPending}>
-                    {connexion.isPending ? "Connexion..." : "Se connecter"}
+
+                  <button type="submit" className="submit-button" disabled={isLoading || connexion.isPending}>
+                    {isLoading || connexion.isPending ? "Connexion..." : "Se connecter"}
                   </button>
                 </form>
 
-                <p className="signup-link">
-                  Vous n'avez pas encore de compte ?{" "}
-                  <a href="#" onClick={(e) => { e.preventDefault(); goToInscription(); }}>
-                    S'inscrire
-                  </a>
-                </p>
+                <div className="nounou-help">
+                  <p>
+                    Vous rencontrez des difficultés ?{" "}
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppContact}
+                      className="nounou-help-link"
+                    >
+                      <MessageCircle size={14} />
+                      Contacter le support
+                    </button>
+                  </p>
+                </div>
               </>
             )}
 
-            {/* ===== PIN OUBLIÉ : simplification sans SMS ===== */}
-            {screen === "forgot-phone" && (
+            {isMenageOrAgence && (
               <>
-                <h2 className="connexion-title">PIN oublié</h2>
-                <p className="connexion-subtitle">
-                  La vérification par SMS a été retirée. Entrez votre numéro pour revenir à la connexion.
-                </p>
-                <form onSubmit={handleForgotPhoneSubmit} className="connexion-form">
+                <h2 className="connexion-title">Se connecter</h2>
+                <p className="connexion-subtitle">Entrez votre téléphone et votre PIN</p>
+
+                <div className="profil-selector">
+                  <button
+                    type="button"
+                    className={`profil-option ${isMenage ? "active" : ""}`}
+                    onClick={() => {
+                      setSelectedProfil("menage");
+                      setErrorMessage("");
+                    }}
+                  >
+                    🏠 Famille
+                  </button>
+                  <button
+                    type="button"
+                    className={`profil-option ${isAgence ? "active" : ""}`}
+                    onClick={() => {
+                      setSelectedProfil("agence");
+                      setErrorMessage("");
+                    }}
+                  >
+                    🏢 Agence
+                  </button>
+                  <button
+                    type="button"
+                    className={`profil-option ${isNounou ? "active" : ""}`}
+                    onClick={() => {
+                      setSelectedProfil("nounou");
+                      setNounouModeLocal(null);
+                      setErrorMessage("");
+                    }}
+                  >
+                    👩‍🍼 Nounou
+                  </button>
+                </div>
+
+                <form onSubmit={handleLoginSubmit} className="connexion-form">
                   <div className="form-group">
                     <label>Numéro de téléphone</label>
                     <input
@@ -221,10 +319,50 @@ export default function ConnexionPage() {
                       required
                     />
                   </div>
-                  <button type="submit" className="submit-button" disabled={demanderReset.isPending}>
-                    {demanderReset.isPending ? "Traitement..." : "Retour à la connexion"}
+
+                  <div className="form-group">
+                    <label className="pin-label">
+                      <Lock size={16} className="pin-icon" />
+                      Code PIN ({PIN_LENGTH} chiffres)
+                    </label>
+                    <div className="pin-container">
+                      {[0, 1, 2, 3].map((index) => (
+                        <input
+                          key={index}
+                          id={`pin-${index}`}
+                          type={showPin ? "text" : "password"}
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={pin[index]}
+                          onChange={(e) => handlePinChange(index, e.target.value)}
+                          onKeyDown={(e) => handlePinKeyDown(index, e)}
+                          className="pin-input"
+                          autoFocus={index === 0}
+                        />
+                      ))}
+                      <button type="button" onClick={() => setShowPin(!showPin)} className="pin-toggle">
+                        {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="forgot-password">
+                    <a href="#" onClick={(e) => { e.preventDefault(); navigate("/reset-password"); }}>
+                      PIN oublié ?
+                    </a>
+                  </div>
+
+                  <button type="submit" className="submit-button" disabled={isLoading || connexion.isPending}>
+                    {isLoading || connexion.isPending ? "Connexion..." : "Se connecter"}
                   </button>
                 </form>
+
+                <p className="signup-link">
+                  Vous n'avez pas encore de compte ?{" "}
+                  <a href="#" onClick={(e) => { e.preventDefault(); goToInscription(); }}>
+                    S'inscrire
+                  </a>
+                </p>
               </>
             )}
           </div>
@@ -317,7 +455,24 @@ export default function ConnexionPage() {
           margin-bottom: 28px;
         }
 
-        /* ===== SÉLECTEUR DE PROFIL ===== */
+        .back-to-choice {
+          background: transparent;
+          border: none;
+          color: #78716C;
+          cursor: pointer;
+          font-size: 14px;
+          padding: 0;
+          margin-bottom: 12px;
+          transition: color 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .back-to-choice:hover {
+          color: #C2614F;
+        }
+
         .profil-selector {
           display: flex;
           gap: 12px;
@@ -344,6 +499,88 @@ export default function ConnexionPage() {
         .profil-option.active {
           border-color: #C2614F;
           background: #C2614F08;
+          color: #C2614F;
+        }
+
+        .nounou-choice {
+          text-align: center;
+          padding: 8px 0;
+        }
+
+        .nounou-choice-title {
+          font-size: 22px;
+          font-weight: 700;
+          color: #1C1917;
+          margin: 0 0 4px;
+        }
+
+        .nounou-choice-subtitle {
+          font-size: 14px;
+          color: #78716C;
+          margin: 0 0 20px;
+        }
+
+        .nounou-choice-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .nounou-choice-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          padding: 20px;
+          border: 2px solid #E8DDD0;
+          border-radius: 16px;
+          background: transparent;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          width: 100%;
+        }
+
+        .nounou-choice-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(28,25,23,0.08);
+        }
+
+        .nounou-choice-btn.with-agence:hover {
+          border-color: #4A7C59;
+          background: #E8F5E8;
+        }
+
+        .nounou-choice-btn.without-agence:hover {
+          border-color: #C2614F;
+          background: #F8EDEE;
+        }
+
+        .nounou-choice-btn svg {
+          color: #705334;
+        }
+
+        .nounou-choice-btn span {
+          font-size: 16px;
+          font-weight: 700;
+          color: #1C1917;
+        }
+
+        .nounou-choice-btn small {
+          font-size: 12px;
+          color: #78716C;
+        }
+
+        .nounou-choice-back {
+          background: transparent;
+          border: none;
+          color: #78716C;
+          cursor: pointer;
+          font-size: 14px;
+          margin-top: 16px;
+          transition: color 0.2s;
+        }
+
+        .nounou-choice-back:hover {
           color: #C2614F;
         }
 
@@ -385,51 +622,11 @@ export default function ConnexionPage() {
           color: #B8A89A;
         }
 
-        .otp-container {
-          display: flex;
-          gap: 10px;
-          justify-content: flex-start;
-        }
-
-        .otp-input {
-          width: 48px;
-          height: 56px;
-          text-align: center;
-          font-size: 24px;
-          font-weight: 700;
-          border: 1.5px solid #D4B896;
-          border-radius: 12px;
-          background: #FAF7F2;
-          outline: none;
-          transition: border-color 0.2s;
-          color: #1C1917;
-        }
-
-        .otp-input:focus {
-          border-color: #C2614F;
-        }
-
-        .otp-hint {
+        .field-hint {
           font-size: 12px;
           color: #78716C;
-          margin-top: 6px;
-        }
-
-        .resend-link {
-          text-align: center;
-          margin-top: -8px;
-        }
-
-        .resend-link a {
-          color: #78716C;
-          font-size: 13px;
-          text-decoration: none;
-          cursor: pointer;
-        }
-
-        .resend-link a:hover {
-          color: #C2614F;
-          text-decoration: underline;
+          margin-top: 4px;
+          font-style: italic;
         }
 
         .pin-label {
@@ -475,12 +672,6 @@ export default function ConnexionPage() {
           padding: 8px;
         }
 
-        .pin-hint {
-          font-size: 12px;
-          color: #78716C;
-          margin-top: 6px;
-        }
-
         .forgot-password {
           text-align: right;
           margin-top: -8px;
@@ -498,6 +689,37 @@ export default function ConnexionPage() {
           text-decoration: underline;
         }
 
+        .nounou-help {
+          margin-top: 16px;
+          padding: 12px 16px;
+          background: #F8EDEE;
+          border-radius: 12px;
+          border: 1px solid rgba(194,97,79,0.12);
+          text-align: center;
+        }
+
+        .nounou-help p {
+          font-size: 13px;
+          color: #78716C;
+          margin: 0;
+        }
+
+        .nounou-help-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          color: #25D366;
+          font-weight: 600;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 13px;
+        }
+
+        .nounou-help-link:hover {
+          text-decoration: underline;
+        }
+
         .submit-button {
           background: #C2614F;
           color: white;
@@ -507,12 +729,17 @@ export default function ConnexionPage() {
           font-size: clamp(16px, 1vw, 17px);
           font-weight: 700;
           cursor: pointer;
-          transition: background 0.2s, transform 0.2s;
+          transition: background 0.2s;
           margin-top: 4px;
         }
 
         .submit-button:hover {
           background: #B25545;
+        }
+
+        .submit-button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .signup-link {
@@ -548,9 +775,6 @@ export default function ConnexionPage() {
           .connexion-content {
             text-align: center;
           }
-          .otp-container {
-            justify-content: center;
-          }
           .pin-container {
             justify-content: center;
           }
@@ -563,6 +787,12 @@ export default function ConnexionPage() {
           .profil-selector {
             justify-content: center;
           }
+          .nounou-help {
+            text-align: center;
+          }
+          .nounou-choice-buttons {
+            align-items: center;
+          }
         }
 
         @media (max-width: 480px) {
@@ -572,11 +802,6 @@ export default function ConnexionPage() {
           }
           .connexion-image {
             max-width: 200px;
-          }
-          .otp-input {
-            width: 40px;
-            height: 48px;
-            font-size: 20px;
           }
           .pin-input {
             width: 48px;
@@ -593,14 +818,15 @@ export default function ConnexionPage() {
             font-size: 12px;
             padding: 10px 12px;
           }
+          .nounou-choice-btn {
+            padding: 16px;
+          }
+          .nounou-choice-btn span {
+            font-size: 14px;
+          }
         }
 
         @media (max-width: 380px) {
-          .otp-input {
-            width: 34px;
-            height: 42px;
-            font-size: 16px;
-          }
           .pin-input {
             width: 40px;
             height: 40px;

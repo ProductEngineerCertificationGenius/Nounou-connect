@@ -53,6 +53,66 @@ export function useAgenceProfil() {
   });
 }
 
+// ===== UPLOAD DU DOCUMENT JUSTIFICATIF (étape obligatoire à l'inscription) =====
+// Nécessite la migration 0014_agences_document_verification.sql (bucket
+// privé `documents-agences` + colonnes document_url / statut_verification
+// sur `agences`) — à faire appliquer par l'équipe backend avant que cet
+// appel fonctionne réellement.
+const DOCUMENT_TYPES_ACCEPTES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+const DOCUMENT_TAILLE_MAX_OCTETS = 5 * 1024 * 1024; // 5 Mo
+
+export function validerFichierDocument(file: File): string | null {
+  if (!DOCUMENT_TYPES_ACCEPTES.includes(file.type)) {
+    return "Format non supporté. Utilisez un PDF, JPG ou PNG.";
+  }
+  if (file.size > DOCUMENT_TAILLE_MAX_OCTETS) {
+    return "Fichier trop volumineux (5 Mo maximum).";
+  }
+  return null;
+}
+
+export function useUploaderDocumentAgence() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ agenceId, file }: { agenceId: string; file: File }) => {
+      const erreurValidation = validerFichierDocument(file);
+      if (erreurValidation) throw new Error(erreurValidation);
+
+      if (!isSupabaseConfigured) {
+        // Permet de continuer à travailler sur l'UI sans dépendre de la
+        // migration/bucket côté backend : voir DEBUG_ERRORS.md.
+        return { document_url: "demo://document", statut_verification: "en_attente" as const };
+      }
+
+      const extension = file.name.split(".").pop() || "pdf";
+      const path = `agences/${agenceId}/document.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("documents-agences")
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data, error } = await supabase
+        .from("agences")
+        .update({
+          document_url: path,
+          statut_verification: "en_attente",
+          document_uploaded_at: new Date().toISOString(),
+        })
+        .eq("id", agenceId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      // Clé réelle = ["agence", "profil", user_id] (cf. useAgenceProfil) :
+      // on invalide par préfixe, react-query matche toutes les variantes.
+      queryClient.invalidateQueries({ queryKey: ["agence", "profil"] });
+    },
+  });
+}
+
 // ===== VIVIER DE NOUNOUS DE L'AGENCE =====
 export function useAgenceNounous(agenceId?: string) {
   return useQuery({
@@ -134,7 +194,7 @@ export function useAgenceDemandes(agenceId?: string) {
       // soit lisible par l'agence (sinon toujours null).
       const { data, error } = await supabase
         .from("demandes")
-        .select("*, menage:menages(nom), nounou_assignee:nounous!nounou_assignee_id(nom)")
+        .select("*, menage:menages(nom, telephone), nounou_assignee:nounous!nounou_assignee_id(nom)")
         .eq("agence_id", agenceId!)
         .order("date", { ascending: false });
       if (error) throw error;

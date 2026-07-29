@@ -3,6 +3,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import InscriptionPage from "./pages/InscriptionPage";
 import ConnexionPage from "./pages/ConnexionPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import AidePage from "./pages/AidePage";
+import AProposPage from "./pages/AProposPage";
 import EspaceMenage from "./pages/EspaceMenage";
 import EspaceAgence from "./pages/EspaceAgence";
 import EspaceNounou from "./pages/EspaceNounou";
@@ -10,20 +13,6 @@ import { useAuthStore, type ProfileType } from "./store/useAuthStore";
 import AProposPage from "./pages/AProposPage";
 import ConditionsPage from "./pages/ConditionsPage";
 import ConfidentialitePage from "./pages/ConfidentialitePage";
-
-// ================================================================
-// Réécriture complète : l'original gérait la navigation avec un simple
-// useState("home" | "inscription" | ...) dans App.tsx — pas d'URL
-// réelle, pas de bouton "retour" navigateur, rien de partageable/
-// bookmarkable. react-router-dom était déjà en dépendance
-// (package.json) mais jamais utilisé. Chaque "onBack"/"onLoginSuccess"
-// simulé devient une vraie route.
-//
-// Ajout : `RequireProfile`, garde d'accès simple — un espace agence ne
-// doit pas être atteignable en tapant l'URL sans être connecté en tant
-// qu'agence (la vraie sécurité reste le RLS côté Supabase, ceci n'est
-// qu'un confort de navigation côté client).
-// ================================================================
 
 function RequireProfile({
   profile,
@@ -33,8 +22,10 @@ function RequireProfile({
   children: React.ReactNode;
 }) {
   const { user, profileType } = useAuthStore();
+  
+  // ✅ Si non connecté → rediriger vers la Landing Page
   if (!user || profileType !== profile) {
-    return <Navigate to="/connexion" replace />;
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
 }
@@ -42,13 +33,17 @@ function RequireProfile({
 export default function App() {
   return (
     <Routes>
+      {/* Pages publiques */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/inscription" element={<InscriptionPage />} />
       <Route path="/connexion" element={<ConnexionPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/aide" element={<AidePage />} />
       <Route path="/a-propos" element={<AProposPage />} />
       <Route path="/conditions" element={<ConditionsPage />} />
       <Route path="/confidentialite" element={<ConfidentialitePage />} />
 
+      {/* Pages protégées - Ménage */}
       <Route
         path="/espace-menage"
         element={
@@ -57,6 +52,8 @@ export default function App() {
           </RequireProfile>
         }
       />
+
+      {/* Pages protégées - Agence */}
       <Route
         path="/espace-agence"
         element={
@@ -65,6 +62,8 @@ export default function App() {
           </RequireProfile>
         }
       />
+
+      {/* Pages protégées - Nounou */}
       <Route
         path="/espace-nounou"
         element={
@@ -74,6 +73,7 @@ export default function App() {
         }
       />
 
+      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

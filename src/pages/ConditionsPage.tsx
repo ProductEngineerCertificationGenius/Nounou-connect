@@ -6,7 +6,7 @@ export default function ConditionsPage() {
       <LegalSection title="1. Objet">
         <p>
           Les présentes conditions régissent l'utilisation de la plateforme
-          Nounou Connect, qui met en relation des familles, des agences et
+          Nounou Connect, qui met en relation des ménages, des agences et
           des professionnelles de la garde d'enfants et du ménage à
           domicile.
         </p>
@@ -14,7 +14,7 @@ export default function ConditionsPage() {
 
       <LegalSection title="2. Inscription">
         <p>
-          L'inscription est ouverte aux familles, agences et
+          L'inscription est ouverte aux ménages, agences et
           professionnelles majeures. Chaque utilisateur s'engage à fournir
           des informations exactes et à jour lors de la création de son
           profil.
@@ -25,7 +25,7 @@ export default function ConditionsPage() {
         <p>
           Nounou Connect met en relation les utilisateurs mais n'intervient
           pas dans la relation contractuelle (recrutement, rémunération,
-          conditions de travail) qui se noue directement entre la famille
+          conditions de travail) qui se noue directement entre le ménage
           et l'agence ou la professionnelle.
         </p>
       </LegalSection>
@@ -42,7 +42,7 @@ export default function ConditionsPage() {
         <p>
           Les agences sont responsables de la vérification des profils
           qu'elles proposent. Nounou Connect ne saurait être tenu
-          responsable des accords conclus entre une famille et une agence
+          responsable des accords conclus entre un ménage et une agence
           ou une professionnelle.
         </p>
       </LegalSection>

@@ -14,7 +14,7 @@ export default function ConfidentialitePage() {
 
       <LegalSection title="2. Utilisation des données">
         <p>— Créer et gérer votre compte.</p>
-        <p>— Mettre en relation les familles et les agences.</p>
+        <p>— Mettre en relation les ménages et les agences.</p>
         <p>— Vous contacter au sujet de vos demandes.</p>
         <p>— Améliorer la sécurité et la qualité du service.</p>
       </LegalSection>
