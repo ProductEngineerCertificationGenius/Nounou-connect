@@ -1,12 +1,11 @@
 export function Logo({ size = 36 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="40" height="40" rx="11" fill="#C2614F" />
-      <circle cx="13" cy="11" r="4.5" fill="white" />
-      <path d="M6 28c0-5 3.5-8.5 7-8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-      <circle cx="27" cy="13" r="3.5" fill="rgba(255,255,255,0.7)" />
-      <path d="M34 28c0-4 -2.8-6.5-6-7" stroke="rgba(255,255,255,0.7)" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M19.5 21.5 C19.5 19.5 17 18 17 20.5 C17 22.5 19.5 24.5 19.5 24.5 C19.5 24.5 22 22.5 22 20.5 C22 18 19.5 19.5 19.5 21.5Z" fill="white" />
-    </svg>
+    <img
+      src="/logo.png"
+      alt="Nounou Connect"
+      width={size}
+      height={size}
+      style={{ objectFit: "contain" }}
+    />
   );
 }
