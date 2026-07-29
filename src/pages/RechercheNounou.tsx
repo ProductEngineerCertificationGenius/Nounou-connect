@@ -1,5 +1,5 @@
 // src/pages/RechercheNounou.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -12,6 +12,7 @@ import {
   Briefcase,
   Star,
   Send,
+  Ban,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useAuthStore } from "../store/useAuthStore";
@@ -26,6 +27,7 @@ interface NounouResultat {
   nom: string;
   quartier?: string;
   experience?: string;
+  tache?: string;
   tarif?: number;
   note_moyenne?: number;
   photo_url?: string;
@@ -68,7 +70,26 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
   const [formData, setFormData] = useState({ quartier: "", besoin: "", temps: "", logement: "" });
   const [resultats, setResultats] = useState<NounouResultat[]>([]);
   const [demandeEnvoyeeA, setDemandeEnvoyeeA] = useState<string | null>(null);
+  const [demandeEnCoursId, setDemandeEnCoursId] = useState<string | null>(null);
+  const [demandeCreeeA, setDemandeCreeeA] = useState<number | null>(null);
+  const [secondesRestantes, setSecondesRestantes] = useState(0);
+  const DELAI_ANNULATION_SECONDES = 60;
   const totalSteps = 5;
+
+  // Décompte des secondes restantes pour pouvoir annuler la demande
+  // en cours (1 minute, cf. 0024_demandes_annulation_1min.sql : la
+  // vraie limite est imposée côté base, ce décompte n'est que
+  // l'affichage).
+  useEffect(() => {
+    if (!demandeCreeeA) return;
+    const tick = () => {
+      const ecoule = Math.floor((Date.now() - demandeCreeeA) / 1000);
+      setSecondesRestantes(Math.max(0, DELAI_ANNULATION_SECONDES - ecoule));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [demandeCreeeA]);
 
   const rechercher = useMutation({
     mutationFn: async () => {
@@ -102,20 +123,48 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
   const envoyerDemande = useMutation({
     mutationFn: async (nounou: NounouResultat) => {
       if (!currentUser?.id) throw new Error("Vous devez être connecté.");
-      const { error } = await supabase.from("demandes").insert({
-        agence_id: nounou.agence_id,
-        menage_id: currentUser.id,
-        nounou_assignee_id: nounou.id,
-        quartier: formData.quartier,
-        besoin: formData.besoin,
-        temps: formData.temps,
-        logement: formData.logement,
-        statut: "En attente",
-      });
+      const { data, error } = await supabase
+        .from("demandes")
+        .insert({
+          agence_id: nounou.agence_id,
+          menage_id: currentUser.id,
+          nounou_assignee_id: nounou.id,
+          quartier: formData.quartier,
+          besoin: formData.besoin,
+          temps: formData.temps,
+          logement: formData.logement,
+          statut: "En attente",
+        })
+        .select("id, date")
+        .single();
       if (error) throw error;
-      return nounou.id;
+      return { nounouId: nounou.id, demandeId: data.id as string, date: data.date as string };
     },
-    onSuccess: (nounouId) => setDemandeEnvoyeeA(nounouId),
+    onSuccess: ({ nounouId, demandeId, date }) => {
+      setDemandeEnvoyeeA(nounouId);
+      setDemandeEnCoursId(demandeId);
+      setDemandeCreeeA(new Date(date).getTime());
+    },
+    onError: (err) => alert(getErrorMessage(err)),
+  });
+
+  const annulerDemande = useMutation({
+    mutationFn: async () => {
+      if (!demandeEnCoursId) return;
+      const { error } = await supabase
+        .from("demandes")
+        .update({ statut: "Annulée" })
+        .eq("id", demandeEnCoursId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // Réinitialise pour permettre à la famille de choisir une autre
+      // nounou (ou la même) juste après.
+      setDemandeEnvoyeeA(null);
+      setDemandeEnCoursId(null);
+      setDemandeCreeeA(null);
+      setSecondesRestantes(0);
+    },
     onError: (err) => alert(getErrorMessage(err)),
   });
 
@@ -272,12 +321,26 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
                   <span><Star size={12} color="#F59E0B" fill="#F59E0B" /> {nounou.note_moyenne}</span>
                 )}
               </div>
+              {nounou.tache && <div className="resultat-tache">{nounou.tache}</div>}
               {nounou.tarif != null && (
-                <div className="resultat-tarif">{nounou.tarif.toLocaleString()} FCFA / jour</div>
+                <div className="resultat-tarif">{nounou.tarif.toLocaleString()} FCFA / mois</div>
               )}
             </div>
             {demandeEnvoyeeA === nounou.id ? (
-              <span className="demande-envoyee">✅ Demande envoyée</span>
+              secondesRestantes > 0 ? (
+                <div className="demande-envoyee-annulable">
+                  <span className="demande-envoyee">✅ Demande envoyée</span>
+                  <button
+                    className="btn-annuler-demande"
+                    onClick={() => annulerDemande.mutate()}
+                    disabled={annulerDemande.isPending}
+                  >
+                    <Ban size={14} /> Annuler ({secondesRestantes}s)
+                  </button>
+                </div>
+              ) : (
+                <span className="demande-envoyee">✅ Demande envoyée</span>
+              )
             ) : (
               <button
                 className="btn-envoyer"
@@ -290,7 +353,7 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
           </div>
         ))}
         {resultats.length === 0 && (
-          <p style={{ color: "#78716C", fontSize: 14 }}>
+          <p style={{ color: "#8A867A", fontSize: 14 }}>
             Aucune nounou disponible ne correspond à ces critères pour le moment.
           </p>
         )}
@@ -350,18 +413,18 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
         /* VARIABLES - THEME NOUNOU CONNECT                             */
         /* ============================================================ */
         :root {
-          --terracotta: #C2614F;
-          --terracotta-light: #D4818A;
-          --terracotta-lighter: #F2D6D8;
-          --terracotta-pale: #F8EDEE;
+          --terracotta: #F3811E;
+          --terracotta-light: #F5A855;
+          --terracotta-lighter: #FFF3D6;
+          --terracotta-pale: #FFF7E6;
           --sauge: #4A7C59;
           --sauge-light: #6BBF6B;
-          --beige: #D4B896;
-          --beige-light: #F8F6F5;
-          --gris-fonce: #1C1917;
-          --gris-moyen: #78716C;
+          --beige: #C1631B;
+          --beige-light: #FBF8F4;
+          --gris-fonce: #211B14;
+          --gris-moyen: #8A867A;
           --blanc: #FFFFFF;
-          --shadow: 0 4px 20px rgba(28, 25, 23, 0.06);
+          --shadow: 0 4px 20px rgba(33, 27, 20, 0.06);
           --radius: 20px;
           --radius-sm: 14px;
         }
@@ -943,7 +1006,7 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
         }
 
         .btn-next:hover {
-          background: #B25545;
+          background: #C1631B;
           box-shadow: 0 4px 16px rgba(194, 97, 79, 0.3);
         }
 
@@ -1049,26 +1112,33 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
         .resultats-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
         .resultat-card {
           display: flex; justify-content: space-between; align-items: center;
-          padding: 16px; border: 1px solid rgba(28,25,23,0.1); border-radius: 14px; background: #FAF7F2;
+          padding: 16px; border: 1px solid rgba(28,25,23,0.1); border-radius: 14px; background: #F1F0EC;
         }
-        .resultat-card h3 { font-size: 15px; font-weight: 600; color: #1C1917; margin: 0 0 4px; }
-        .resultat-meta { display: flex; gap: 12px; font-size: 12px; color: #78716C; align-items: center; flex-wrap: wrap; }
+        .resultat-card h3 { font-size: 15px; font-weight: 600; color: #211B14; margin: 0 0 4px; }
+        .resultat-meta { display: flex; gap: 12px; font-size: 12px; color: #8A867A; align-items: center; flex-wrap: wrap; }
         .resultat-meta span { display: flex; align-items: center; gap: 4px; }
         .resultat-card-nounou { gap: 14px; align-items: flex-start; flex-wrap: wrap; }
         .resultat-nounou-avatar {
           width: 52px; height: 52px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
-          display: flex; align-items: center; justify-content: center; background: #F2D6D8;
+          display: flex; align-items: center; justify-content: center; background: #FFF3D6;
         }
         .resultat-nounou-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .resultat-nounou-avatar .avatar-initials { color: #C2614F; font-weight: 700; font-size: 15px; }
+        .resultat-nounou-avatar .avatar-initials { color: #F3811E; font-weight: 700; font-size: 15px; }
         .resultat-nounou-infos { flex: 1; min-width: 140px; }
-        .resultat-tarif { font-size: 13px; color: #1C1917; font-weight: 600; margin-top: 6px; }
+        .resultat-tache { font-size: 11px; color: #F3811E; font-weight: 600; margin-top: 4px; }
+        .resultat-tarif { font-size: 13px; color: #211B14; font-weight: 600; margin-top: 6px; }
         .btn-envoyer {
           display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px;
           background: #4A7C59; color: white; border: none; font-size: 13px; font-weight: 600; cursor: pointer;
         }
         .btn-envoyer:disabled { opacity: 0.6; cursor: not-allowed; }
         .demande-envoyee { font-size: 13px; color: #4A7C59; font-weight: 600; }
+        .demande-envoyee-annulable { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .btn-annuler-demande {
+          display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px;
+          background: #E63946; color: white; border: none; font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+        .btn-annuler-demande:disabled { opacity: 0.6; cursor: not-allowed; }
       `}</style>
     </div>
   );

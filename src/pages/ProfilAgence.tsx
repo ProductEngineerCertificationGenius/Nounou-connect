@@ -267,7 +267,7 @@ export default function ProfilAgence({
         .btn-back {
           background: transparent;
           border: none;
-          color: #78716C;
+          color: #8A867A;
           cursor: pointer;
           padding: 4px;
           border-radius: 8px;
@@ -278,14 +278,14 @@ export default function ProfilAgence({
         }
 
         .btn-back:hover {
-          background: #F2D6D8;
-          color: #C2614F;
+          background: #FFF3D6;
+          color: #F3811E;
         }
 
         .header-title {
           font-size: 18px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .header-actions {
@@ -299,19 +299,19 @@ export default function ProfilAgence({
           align-items: center;
           gap: 6px;
           padding: 8px 18px;
-          background: #F2D6D8;
-          border: 2px solid #F2D6D8;
+          background: #FFF3D6;
+          border: 2px solid #FFF3D6;
           border-radius: 50px;
           font-size: 13px;
           font-weight: 600;
-          color: #C2614F;
+          color: #F3811E;
           cursor: pointer;
           transition: all 0.25s ease;
         }
 
         .btn-edit:hover {
           background: #F8EDEE;
-          border-color: #C2614F;
+          border-color: #F3811E;
         }
 
         .edit-actions {
@@ -325,18 +325,18 @@ export default function ProfilAgence({
           gap: 6px;
           padding: 8px 16px;
           background: transparent;
-          border: 2px solid #D4B896;
+          border: 2px solid #C1631B;
           border-radius: 50px;
           font-size: 13px;
           font-weight: 600;
-          color: #78716C;
+          color: #8A867A;
           cursor: pointer;
           transition: all 0.25s ease;
         }
 
         .btn-cancel:hover {
-          border-color: #C2614F;
-          color: #C2614F;
+          border-color: #F3811E;
+          color: #F3811E;
         }
 
         .btn-save {
@@ -383,12 +383,12 @@ export default function ProfilAgence({
           overflow: hidden;
           flex-shrink: 0;
           cursor: ${isEditing ? "pointer" : "default"};
-          border: 3px solid #F2D6D8;
+          border: 3px solid #FFF3D6;
           transition: all 0.3s ease;
         }
 
         .avatar-wrapper:hover {
-          border-color: ${isEditing ? "#C2614F" : "#F2D6D8"};
+          border-color: ${isEditing ? "#F3811E" : "#FFF3D6"};
         }
 
         .avatar-wrapper img {
@@ -400,11 +400,11 @@ export default function ProfilAgence({
         .avatar-placeholder {
           width: 100%;
           height: 100%;
-          background: #F2D6D8;
+          background: #FFF3D6;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #C2614F;
+          color: #F3811E;
         }
 
         .avatar-edit-overlay {
@@ -436,7 +436,7 @@ export default function ProfilAgence({
         .avatar-info h2 {
           font-size: 20px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
           margin: 0 0 4px 0;
         }
 
@@ -460,7 +460,7 @@ export default function ProfilAgence({
           align-items: center;
           gap: 4px;
           font-size: 13px;
-          color: #1C1917;
+          color: #211B14;
           font-weight: 600;
         }
 
@@ -488,21 +488,21 @@ export default function ProfilAgence({
           display: block;
           font-size: 12px;
           font-weight: 600;
-          color: #78716C;
+          color: #8A867A;
           text-transform: uppercase;
           letter-spacing: 0.3px;
           margin-bottom: 4px;
         }
 
         .info-group .required {
-          color: #C2614F;
+          color: #F3811E;
         }
 
         .info-group .optional {
           font-weight: 400;
           text-transform: none;
           letter-spacing: 0;
-          color: #78716C;
+          color: #8A867A;
           font-size: 11px;
         }
 
@@ -511,11 +511,11 @@ export default function ProfilAgence({
         .info-group textarea {
           width: 100%;
           padding: 10px 14px;
-          border: 2px solid #F2D6D8;
+          border: 2px solid #FFF3D6;
           border-radius: 12px;
           font-size: 14px;
-          background: #FAF7F2;
-          color: #1C1917;
+          background: #F1F0EC;
+          color: #211B14;
           transition: all 0.25s ease;
           font-family: inherit;
           appearance: none;
@@ -526,7 +526,7 @@ export default function ProfilAgence({
         .info-group select:focus,
         .info-group textarea:focus {
           outline: none;
-          border-color: #C2614F;
+          border-color: #F3811E;
           background: white;
           box-shadow: 0 0 0 4px rgba(194, 97, 79, 0.06);
         }
@@ -541,18 +541,18 @@ export default function ProfilAgence({
           align-items: flex-start;
           gap: 10px;
           padding: 8px 0;
-          color: #1C1917;
+          color: #211B14;
           font-size: 14px;
         }
 
         .info-value svg {
-          color: #C2614F;
+          color: #F3811E;
           flex-shrink: 0;
           margin-top: 2px;
         }
 
         .info-value.description span {
-          color: #78716C;
+          color: #8A867A;
           line-height: 1.6;
         }
 
@@ -580,18 +580,18 @@ export default function ProfilAgence({
         }
 
         .stat-card svg {
-          color: #C2614F;
+          color: #F3811E;
         }
 
         .stat-card .stat-number {
           font-size: 13px;
           font-weight: 600;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .stat-card .stat-label {
           font-size: 11px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         /* ============================================================ */
