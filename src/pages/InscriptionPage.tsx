@@ -360,14 +360,18 @@ export default function InscriptionPage() {
             )}
             {showNomQuartier && !isSelfRegisterNounou && (
               <div className="form-group">
-                <label>Quartier <span className="required">*</span></label>
-                <select name="quartier" value={formData.quartier} onChange={handleChange} required>
-                  <option value="">Sélectionnez votre quartier</option>
+                <label>Secteur <span className="required">*</span></label>
+                <select name="secteur" value={formData.secteur} onChange={handleChange} required>
+                  <option value="">Sélectionnez votre secteur</option>
                   <option value="Abobo">Abobo</option>
                   <option value="Cocody">Cocody</option>
                   <option value="Koumassi">Koumassi</option>
                   <option value="Plateau">Plateau</option>
                   <option value="Yopougon">Yopougon</option>
+                  <option value="Bingerville">Bingerville</option>
+                  <option value="Bassam">Bassam</option>
+                  <option value="Macory">Macory</option>
+                  <option value="N'dotré">N'dotré</option>
                 </select>
               </div>
             )}
@@ -526,7 +530,7 @@ export default function InscriptionPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #FAF7F2;
+          background-color: #F7F7F7;
           padding: clamp(16px, 4vw, 60px);
           font-family: "Inter", sans-serif;
         }
@@ -537,7 +541,7 @@ export default function InscriptionPage() {
           background: white;
           border-radius: 32px;
           padding: clamp(24px, 5vw, 56px);
-          box-shadow: 0 24px 80px rgba(28, 25, 23, 0.06);
+          box-shadow:0 24px 80px rgba(28, 25, 23, 0.06);
           border: 1px solid rgba(212, 184, 150, 0.12);
         }
 
@@ -691,7 +695,7 @@ export default function InscriptionPage() {
         }
 
         .form-group .required {
-          color: #C2614F;
+          color: #F9940E;
         }
 
         .form-group .optional {
@@ -741,7 +745,7 @@ export default function InscriptionPage() {
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
-          border-color: #C2614F;
+          border-color: #F9940E;
         }
 
         .form-group input::placeholder,
@@ -772,7 +776,7 @@ export default function InscriptionPage() {
         }
 
         .pin-icon {
-          color: #C2614F;
+          color: #F9940E;
         }
 
         .pin-container {
@@ -797,7 +801,7 @@ export default function InscriptionPage() {
         }
 
         .pin-input:focus {
-          border-color: #C2614F;
+          border-color: #F9940E;
         }
 
         .pin-toggle {
@@ -815,7 +819,7 @@ export default function InscriptionPage() {
         }
 
         .submit-button {
-          background: #C2614F;
+          background: linear-gradient(90deg, #FFC408 0%, #F9940E 100%);
           color: white;
           border: none;
           padding: 16px;
@@ -823,7 +827,7 @@ export default function InscriptionPage() {
           font-size: clamp(16px, 1vw, 17px);
           font-weight: 700;
           cursor: pointer;
-          transition: background 0.2s, transform 0.2s;
+          transition: opacity 0.2s, transform 0.2s;
           margin-top: 4px;
           display: flex;
           align-items: center;
@@ -832,7 +836,7 @@ export default function InscriptionPage() {
         }
 
         .submit-button:hover {
-          background: #B25545;
+          opacity: 0.9;
         }
 
         .login-link {
@@ -843,7 +847,7 @@ export default function InscriptionPage() {
         }
 
         .login-link a {
-          color: #C2614F;
+          color: #F9940E;
           font-weight: 600;
           text-decoration: none;
           cursor: pointer;

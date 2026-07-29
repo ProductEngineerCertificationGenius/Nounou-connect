@@ -157,6 +157,7 @@ export default function EspaceNounou() {
     // Vérifier une dernière fois le délai avant d'annuler
     const demande = mesDemandesAffiliation?.find(d => d.id === demandeId);
     if (!demande || !peutEncoreAnnuler(demande.created_at)) {
+      // Le message a été retiré - l'interface se met à jour automatiquement
       return;
     }
     
@@ -166,8 +167,10 @@ export default function EspaceNounou() {
       // Rafraîchir les données après annulation réussie
       await refetchDemandes();
       await refetchProfil();
+      // Le message de succès a été retiré - l'interface se met à jour automatiquement
     } catch (error) {
       console.error("Erreur lors de l'annulation:", error);
+      // Le message d'erreur a été retiré - l'erreur s'affiche dans l'interface via annulerDemande.error
     } finally {
       setAnnulationEnCours(null);
     }
