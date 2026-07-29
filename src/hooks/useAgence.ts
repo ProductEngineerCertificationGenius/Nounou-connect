@@ -194,7 +194,7 @@ export function useAgenceDemandes(agenceId?: string) {
       // soit lisible par l'agence (sinon toujours null).
       const { data, error } = await supabase
         .from("demandes")
-        .select("*, menage:menages(nom), nounou_assignee:nounous!nounou_assignee_id(nom)")
+        .select("*, menage:menages(nom, telephone), nounou_assignee:nounous!nounou_assignee_id(nom)")
         .eq("agence_id", agenceId!)
         .order("date", { ascending: false });
       if (error) throw error;

@@ -203,14 +203,14 @@ export default function DemandesAffiliationAgence({
           align-items: center;
           justify-content: center;
           padding: 60px 20px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         .loading-spinner {
           width: 40px;
           height: 40px;
-          border: 4px solid #F2D6D8;
-          border-top-color: #C2614F;
+          border: 4px solid #FFF3D6;
+          border-top-color: #F3811E;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
           margin-bottom: 16px;
@@ -238,7 +238,7 @@ export default function DemandesAffiliationAgence({
         .btn-back {
           background: transparent;
           border: none;
-          color: #78716C;
+          color: #8A867A;
           cursor: pointer;
           padding: 4px;
           border-radius: 8px;
@@ -249,14 +249,14 @@ export default function DemandesAffiliationAgence({
         }
 
         .btn-back:hover {
-          background: #F2D6D8;
-          color: #C2614F;
+          background: #FFF3D6;
+          color: #F3811E;
         }
 
         .header-title {
           font-size: 18px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
           display: flex;
           align-items: center;
           gap: 6px;
@@ -264,8 +264,8 @@ export default function DemandesAffiliationAgence({
 
         .header-count {
           font-size: 13px;
-          color: #78716C;
-          background: #F5F0EB;
+          color: #8A867A;
+          background: #F1F0EC;
           padding: 2px 12px;
           border-radius: 50px;
         }
@@ -291,12 +291,12 @@ export default function DemandesAffiliationAgence({
         .stat-number {
           font-size: 20px;
           font-weight: 800;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .stat-label {
           font-size: 11px;
-          color: #78716C;
+          color: #8A867A;
           font-weight: 500;
         }
 
@@ -317,7 +317,7 @@ export default function DemandesAffiliationAgence({
           border-radius: 50px;
           border: 1px solid rgba(212, 184, 150, 0.2);
           background: white;
-          color: #78716C;
+          color: #8A867A;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
@@ -325,8 +325,8 @@ export default function DemandesAffiliationAgence({
         }
 
         .filter-tabs button.active {
-          background: #C2614F;
-          border-color: #C2614F;
+          background: #F3811E;
+          border-color: #F3811E;
           color: white;
         }
 
@@ -377,7 +377,7 @@ export default function DemandesAffiliationAgence({
           margin: 0 0 4px 0;
           font-size: 15px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .nounou-meta {
@@ -385,7 +385,7 @@ export default function DemandesAffiliationAgence({
           gap: 12px;
           flex-wrap: wrap;
           font-size: 12px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         .nounou-meta span {
@@ -442,8 +442,8 @@ export default function DemandesAffiliationAgence({
         }
 
         .btn-refuser {
-          background: #F5F0EB;
-          color: #78716C;
+          background: #F1F0EC;
+          color: #8A867A;
         }
 
         .btn-refuser:hover {
@@ -452,12 +452,12 @@ export default function DemandesAffiliationAgence({
         }
 
         .btn-accepter {
-          background: #C2614F;
+          background: #F3811E;
           color: white;
         }
 
         .btn-accepter:hover {
-          background: #A94F3F;
+          background: #C1631B;
         }
 
         .btn-refuser:disabled, .btn-accepter:disabled {
@@ -489,19 +489,19 @@ export default function DemandesAffiliationAgence({
           justify-content: center;
           padding: 60px 20px;
           text-align: center;
-          color: #78716C;
+          color: #8A867A;
           background: white;
           border-radius: 16px;
         }
 
         .empty-state svg {
-          color: #D4B896;
+          color: #C1631B;
           margin-bottom: 12px;
         }
 
         .empty-state h3 {
           font-size: 16px;
-          color: #1C1917;
+          color: #211B14;
           margin: 0 0 6px 0;
         }
 

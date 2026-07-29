@@ -1,7 +1,9 @@
 // src/pages/EspaceAgence.tsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Home,
+  ArrowLeft,
   Users,
   UserCheck,
   Inbox,
@@ -11,8 +13,6 @@ import {
   Baby,
   ArrowRight,
   Heart,
-  ChevronLeft,
-  ChevronRight,
   Handshake,
   MessageSquare,
   Sparkles,
@@ -306,7 +306,7 @@ function VerificationEnAttente({
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #F5F0EB;
+          background: #F1F0EC;
           padding: 24px;
           font-family: "Inter", sans-serif;
         }
@@ -323,28 +323,28 @@ function VerificationEnAttente({
           width: 72px;
           height: 72px;
           border-radius: 50%;
-          background: #D4B89622;
-          color: #C2614F;
+          background: #C1631B22;
+          color: #F3811E;
           display: flex;
           align-items: center;
           justify-content: center;
           margin: 0 auto 20px;
         }
         .verification-icon.refuse { background: #E87A7A22; color: #E87A7A; }
-        .verification-card h1 { font-size: 20px; font-weight: 700; color: #1C1917; margin-bottom: 12px; }
-        .verification-card p { font-size: 14px; color: #78716C; line-height: 1.6; margin-bottom: 8px; }
+        .verification-card h1 { font-size: 20px; font-weight: 700; color: #211B14; margin-bottom: 12px; }
+        .verification-card p { font-size: 14px; color: #8A867A; line-height: 1.6; margin-bottom: 8px; }
         .verification-reupload { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
         .verification-upload-zone {
           display: flex;
           align-items: center;
           gap: 10px;
           padding: 14px 16px;
-          border: 1.5px dashed #D4B896;
+          border: 1.5px dashed #C1631B;
           border-radius: 12px;
-          color: #78716C;
+          color: #8A867A;
           font-size: 14px;
           cursor: pointer;
-          background: #FAF7F2;
+          background: #F1F0EC;
         }
         .verification-erreur {
           display: flex;
@@ -365,7 +365,7 @@ function VerificationEnAttente({
           gap: 6px;
           background: none;
           border: none;
-          color: #78716C;
+          color: #8A867A;
           font-size: 13px;
           cursor: pointer;
         }
@@ -375,9 +375,9 @@ function VerificationEnAttente({
 }
 
 export default function EspaceAgence() {
+  const navigate = useNavigate();
   const onLogout = useLogout();
   const [activeTab, setActiveTab] = useState<Tab>("accueil");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [demandeId, setDemandeId] = useState<string | undefined>(undefined);
   // Chez l'ami B, ce mode démarrait à `true` (mode démo par défaut).
   // On veut la vraie appli, donc `false` par défaut : les données
@@ -461,49 +461,46 @@ export default function EspaceAgence() {
   // ============================================================
   // RENDU SIDEBAR
   // ============================================================
-  const renderSidebar = () => (
-    <aside className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
-      <div className="sidebar-logo">
-        <Logo size={28} />
-        <span>Nounou</span>
-      </div>
-      <nav className="sidebar-nav">
-        {[
-          { id: "accueil", icon: <Home size={20} />, label: "Accueil" },
-          { id: "nounous", icon: <Users size={20} />, label: "Nounous" },
-          { id: "demandes", icon: <Inbox size={20} />, label: "Demandes" },
-          { id: "affiliations", icon: <Handshake size={20} />, label: "Affiliations" },
-          { id: "profil", icon: <User size={20} />, label: "Profil" },
-        ].map((item) => (
-          <button
-            key={item.id}
-            className={activeTab === item.id ? "active" : ""}
-            onClick={() => {
-              setActiveTab(item.id as Tab);
-              setDemandeId(undefined);
-            }}
-          >
+  const renderHeader = () => (
+    <header className="top-header">
+      <button className="btn-home" onClick={() => navigate("/")} title="Retour à l'accueil">
+        <ArrowLeft size={18} />
+      </button>
+      <Logo size={28} />
+      <span>Nounou Connect</span>
+    </header>
+  );
+
+  const renderBottomNav = () => (
+    <nav className="bottom-nav">
+      {[
+        { id: "accueil", icon: <Home size={20} />, label: "Accueil" },
+        { id: "nounous", icon: <Users size={20} />, label: "Nounous" },
+        { id: "demandes", icon: <Inbox size={20} />, label: "Demandes" },
+        { id: "affiliations", icon: <Handshake size={20} />, label: "Affiliations" },
+        { id: "profil", icon: <User size={20} />, label: "Profil" },
+      ].map((item) => (
+        <button
+          key={item.id}
+          className={activeTab === item.id ? "active" : ""}
+          onClick={() => {
+            setActiveTab(item.id as Tab);
+            setDemandeId(undefined);
+          }}
+        >
+          <span className="nav-icon-wrapper">
             {item.icon}
-            <span>{item.label}</span>
             {item.id === "demandes" && demandesEnAttente.length > 0 && (
               <span className="badge-count">{demandesEnAttente.length}</span>
             )}
             {item.id === "affiliations" && affiliationsEnAttente.length > 0 && (
               <span className="badge-count">{affiliationsEnAttente.length}</span>
             )}
-          </button>
-        ))}
-      </nav>
-      <div className="sidebar-footer">
-        <button className="sidebar-logout" onClick={onLogout}>
-          <LogOut size={20} />
-          <span>Déconnexion</span>
+          </span>
+          <span>{item.label}</span>
         </button>
-      </div>
-      <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
-        {sidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-      </button>
-    </aside>
+      ))}
+    </nav>
   );
 
   // ============================================================
@@ -553,7 +550,7 @@ export default function EspaceAgence() {
             icon={Users}
             number={totalNounous}
             label="Nounous total"
-            color="#C2614F"
+            color="#F3811E"
           />
           <StatCard
             icon={UserCheck}
@@ -565,7 +562,7 @@ export default function EspaceAgence() {
             icon={Inbox}
             number={totalDemandes}
             label="Demandes reçues"
-            color="#D4B896"
+            color="#C1631B"
           />
           <StatCard
             icon={Handshake}
@@ -709,10 +706,11 @@ export default function EspaceAgence() {
   // ============================================================
   return (
     <div className="agence-container">
-      {renderSidebar()}
-      <main className={`main-content ${sidebarOpen ? "with-sidebar" : "full"}`}>
+      {renderHeader()}
+      <main className="main-content">
         {renderContent()}
       </main>
+      {renderBottomNav()}
 
       <style>{`
         /* ============================================================ */
@@ -720,151 +718,109 @@ export default function EspaceAgence() {
         /* ============================================================ */
         .agence-container {
           display: flex;
+          flex-direction: column;
           min-height: 100vh;
-          background: #F5F0EB;
+          background: #F1F0EC;
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
         /* ============================================================ */
-        /* SIDEBAR                                                      */
+        /* HEADER (logo + nom de l'app, en haut à gauche)               */
         /* ============================================================ */
-        .sidebar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          height: 100vh;
-          width: 240px;
-          background: #1C1917;
-          display: flex;
-          flex-direction: column;
-          padding: 20px 12px;
-          transition: transform 0.3s ease;
-          z-index: 1000;
-          border-right: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .sidebar.closed {
-          transform: translateX(-240px);
-        }
-
-        .sidebar.open {
-          transform: translateX(0);
-        }
-
-        .sidebar-logo {
+        .top-header {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 0 8px 20px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-          margin-bottom: 16px;
+          padding: 16px 20px;
+          background: #FFFFFF;
+          border-bottom: 1px solid rgba(33, 27, 20, 0.08);
         }
 
-        .sidebar-logo span {
+        .btn-home {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          border: 1px solid rgba(33, 27, 20, 0.1);
+          background: #FFFFFF;
+          color: #211B14;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-home:hover {
+          background: #F3811E;
+          border-color: #F3811E;
           color: white;
+        }
+
+        .top-header span {
+          color: #211B14;
           font-size: 18px;
           font-weight: 700;
         }
 
-        .sidebar-nav {
+        /* ============================================================ */
+        /* BOTTOM NAV (barre horizontale, en bas)                       */
+        /* ============================================================ */
+        .bottom-nav {
           display: flex;
-          flex-direction: column;
-          gap: 4px;
-          flex: 1;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: #FFFFFF;
+          border-top: 1px solid rgba(33, 27, 20, 0.08);
+          justify-content: space-around;
+          align-items: center;
+          padding: 6px 4px;
+          z-index: 100;
+          box-shadow: 0 -2px 16px rgba(33, 27, 20, 0.06);
         }
 
-        .sidebar-nav button {
+        .bottom-nav button {
           display: flex;
+          flex-direction: column;
           align-items: center;
-          gap: 14px;
-          padding: 10px 14px;
+          gap: 2px;
+          padding: 6px 8px;
           border: none;
           border-radius: 12px;
           background: transparent;
-          color: rgba(255, 255, 255, 0.5);
-          font-size: 14px;
+          color: #8A867A;
+          font-size: 10px;
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s;
-          width: 100%;
-          text-align: left;
+        }
+
+        .bottom-nav button:hover {
+          color: #211B14;
+        }
+
+        .bottom-nav button.active {
+          color: #F3811E;
+        }
+
+        .bottom-nav .nav-icon-wrapper {
           position: relative;
-        }
-
-        .sidebar-nav button:hover {
-          background: rgba(255, 255, 255, 0.06);
-          color: rgba(255, 255, 255, 0.8);
-        }
-
-        .sidebar-nav button.active {
-          background: rgba(194, 97, 79, 0.15);
-          color: #C2614F;
-        }
-
-        .sidebar-nav button.active svg {
-          color: #C2614F;
+          display: flex;
         }
 
         .badge-count {
-          margin-left: auto;
-          background: #C2614F;
-          color: white;
-          font-size: 11px;
-          font-weight: 700;
-          padding: 1px 8px;
-          border-radius: 50px;
-          min-width: 20px;
-          text-align: center;
-        }
-
-        .sidebar-footer {
-          padding-top: 16px;
-          border-top: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .sidebar-logout {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 10px 14px;
-          border: none;
-          border-radius: 12px;
-          background: transparent;
-          color: rgba(255, 255, 255, 0.3);
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          width: 100%;
-          text-align: left;
-        }
-
-        .sidebar-logout:hover {
-          background: rgba(255, 255, 255, 0.06);
-          color: #E87A7A;
-        }
-
-        .sidebar-toggle {
           position: absolute;
-          right: -12px;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          border: none;
-          background: #1C1917;
+          top: -6px;
+          right: -10px;
+          background: #F3811E;
           color: white;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-          transition: all 0.2s;
-        }
-
-        .sidebar-toggle:hover {
-          background: #C2614F;
+          font-size: 10px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 50px;
+          min-width: 16px;
+          text-align: center;
         }
 
         /* ============================================================ */
@@ -872,15 +828,8 @@ export default function EspaceAgence() {
         /* ============================================================ */
         .main-content {
           flex: 1;
-          padding: 16px 20px 40px;
-          margin-left: 240px;
-          transition: margin-left 0.3s ease;
+          padding: 16px 20px 90px;
           min-height: 100vh;
-          max-width: calc(100% - 240px);
-        }
-
-        .main-content.full {
-          margin-left: 0;
           max-width: 100%;
         }
 
@@ -919,11 +868,11 @@ export default function EspaceAgence() {
 
         .welcome-greeting {
           font-size: 20px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         .welcome-greeting strong {
-          color: #1C1917;
+          color: #211B14;
           font-weight: 700;
         }
 
@@ -932,7 +881,7 @@ export default function EspaceAgence() {
           align-items: center;
           gap: 4px;
           font-size: 12px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         /* ============================================================ */
@@ -980,13 +929,13 @@ export default function EspaceAgence() {
         .stat-number {
           font-size: 24px;
           font-weight: 800;
-          color: #1C1917;
+          color: #211B14;
           line-height: 1.2;
         }
 
         .stat-label {
           font-size: 12px;
-          color: #78716C;
+          color: #8A867A;
           font-weight: 500;
         }
 
@@ -1008,14 +957,14 @@ export default function EspaceAgence() {
           gap: 8px;
           font-size: 15px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
           margin: 0;
         }
 
         .see-all {
           background: transparent;
           border: none;
-          color: #C2614F;
+          color: #F3811E;
           font-size: 12px;
           font-weight: 600;
           cursor: pointer;
@@ -1070,12 +1019,12 @@ export default function EspaceAgence() {
 
         .demande-nom {
           font-weight: 600;
-          color: #1C1917;
+          color: #211B14;
           font-size: 14px;
         }
 
         .demande-quartier {
-          color: #78716C;
+          color: #8A867A;
           font-size: 12px;
           display: flex;
           align-items: center;
@@ -1084,8 +1033,8 @@ export default function EspaceAgence() {
 
         .demande-besoin {
           font-size: 12px;
-          color: #78716C;
-          background: #F5F0EB;
+          color: #8A867A;
+          background: #F1F0EC;
           padding: 2px 10px;
           border-radius: 50px;
           display: flex;
@@ -1094,7 +1043,7 @@ export default function EspaceAgence() {
         }
 
         .btn-voir {
-          background: #C2614F;
+          background: #F3811E;
           color: white;
           border: none;
           padding: 5px 14px;
@@ -1109,7 +1058,7 @@ export default function EspaceAgence() {
         }
 
         .btn-voir:hover {
-          background: #B25545;
+          background: #C1631B;
         }
 
         /* ============================================================ */
@@ -1148,21 +1097,21 @@ export default function EspaceAgence() {
 
         .relation-nounou {
           font-weight: 600;
-          color: #1C1917;
+          color: #211B14;
           font-size: 14px;
         }
 
         .relation-arrow {
-          color: #D4B896;
+          color: #C1631B;
         }
 
         .relation-menage {
-          color: #78716C;
+          color: #8A867A;
           font-size: 13px;
         }
 
         .relation-quartier {
-          color: #78716C;
+          color: #8A867A;
           font-size: 12px;
           display: flex;
           align-items: center;
@@ -1171,7 +1120,7 @@ export default function EspaceAgence() {
 
         .relation-date {
           font-size: 12px;
-          color: #78716C;
+          color: #8A867A;
           display: flex;
           align-items: center;
           gap: 3px;
@@ -1237,19 +1186,19 @@ export default function EspaceAgence() {
         .avis-nounou {
           font-size: 12px;
           font-weight: 600;
-          color: #78716C;
+          color: #8A867A;
         }
 
         .avis-commentaire {
           font-size: 13px;
           font-style: italic;
-          color: #1C1917;
+          color: #211B14;
           margin: 4px 0;
         }
 
         .avis-menage {
           font-size: 11px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         /* ============================================================ */
@@ -1258,17 +1207,17 @@ export default function EspaceAgence() {
         .empty-state {
           text-align: center;
           padding: 24px 16px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         .empty-state svg {
-          color: #D4B896;
+          color: #C1631B;
           margin-bottom: 4px;
         }
 
         .empty-state p {
           font-weight: 600;
-          color: #1C1917;
+          color: #211B14;
           margin: 0;
         }
 
@@ -1288,20 +1237,20 @@ export default function EspaceAgence() {
           display: flex;
           justify-content: center;
           gap: 12px;
-          color: #D4B896;
+          color: #C1631B;
           margin-bottom: 8px;
         }
 
         .inspiration-message {
           font-size: 18px;
           font-weight: 700;
-          color: #C2614F;
+          color: #F3811E;
           margin: 0;
         }
 
         .inspiration-sub {
           font-size: 13px;
-          color: #78716C;
+          color: #8A867A;
           font-weight: 500;
           margin: 0;
         }
@@ -1309,7 +1258,7 @@ export default function EspaceAgence() {
         .inspiration-divider {
           width: 50px;
           height: 3px;
-          background: #F2D6D8;
+          background: #FFF3D6;
           margin: 8px auto 0;
           border-radius: 50px;
         }
@@ -1323,14 +1272,14 @@ export default function EspaceAgence() {
           align-items: center;
           justify-content: center;
           padding: 60px 20px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         .loading-spinner {
           width: 40px;
           height: 40px;
-          border: 4px solid #F2D6D8;
-          border-top-color: #C2614F;
+          border: 4px solid #FFF3D6;
+          border-top-color: #F3811E;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
           margin-bottom: 16px;
@@ -1348,11 +1297,11 @@ export default function EspaceAgence() {
         .error-container h2 {
           font-size: 18px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .error-container p {
-          color: #78716C;
+          color: #8A867A;
           font-size: 14px;
           max-width: 480px;
           margin: 8px auto 16px;
@@ -1360,7 +1309,7 @@ export default function EspaceAgence() {
 
         .btn-primary {
           padding: 10px 28px;
-          background: #C2614F;
+          background: #F3811E;
           color: white;
           border: none;
           border-radius: 50px;
@@ -1372,14 +1321,14 @@ export default function EspaceAgence() {
         }
 
         .btn-primary:hover {
-          background: #B25545;
+          background: #C1631B;
         }
 
         .btn-secondary {
           padding: 10px 28px;
           background: transparent;
-          color: #78716C;
-          border: 2px solid #D4B896;
+          color: #8A867A;
+          border: 2px solid #C1631B;
           border-radius: 50px;
           font-size: 14px;
           font-weight: 600;
@@ -1389,8 +1338,8 @@ export default function EspaceAgence() {
         }
 
         .btn-secondary:hover {
-          border-color: #C2614F;
-          color: #C2614F;
+          border-color: #F3811E;
+          color: #F3811E;
         }
 
         /* ============================================================ */
@@ -1403,13 +1352,8 @@ export default function EspaceAgence() {
         }
 
         @media (max-width: 768px) {
-          .sidebar {
-            display: none;
-          }
-
           .main-content {
-            margin-left: 0;
-            padding: 12px 12px 80px;
+            padding: 12px 12px 90px;
             max-width: 100%;
           }
 

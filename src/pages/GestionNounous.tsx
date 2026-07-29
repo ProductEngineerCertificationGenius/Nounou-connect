@@ -36,6 +36,8 @@ import { normalizePhoneCI } from "../lib/phone";
 // — c'était simulé (juste une preview locale en base64) chez Noah.
 // ================================================================
 
+const TACHES = ["Garde d'enfants", "Aide ménagère", "Mixte (Garde + Ménage)"];
+
 interface Nounou {
   id: string;
   nom: string;
@@ -43,6 +45,7 @@ interface Nounou {
   quartier: string;
   experience: string;
   langues: string[];
+  tache?: string;
   tarif: number;
   disponible: boolean;
   photo_url?: string;
@@ -80,6 +83,11 @@ function NounouCard({
             <span><MapPin size={12} /> {nounou.quartier}</span>
             <span><Briefcase size={12} /> {nounou.experience}</span>
           </div>
+          {nounou.tache && (
+            <div className="nounou-badges">
+              <span className="badge-type">{nounou.tache}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -99,7 +107,7 @@ function NounouCard({
         </div>
         <div className="nounou-price">
           <span>{nounou.tarif.toLocaleString()} FCFA</span>
-          <small>/ jour</small>
+          <small>/ mois</small>
         </div>
         <div className="nounou-statut-toggle">
           <span className={`statut-label ${nounou.disponible ? "disponible" : "indisponible"}`}>
@@ -136,6 +144,7 @@ function FormNounou({ agenceId, nounou, onClose }: FormNounouProps) {
     quartier: nounou?.quartier || "",
     experience: nounou?.experience || "",
     langues: nounou?.langues?.join(", ") || "",
+    tache: nounou?.tache || "",
     tarif: nounou?.tarif?.toString() || "",
   });
   const [serverError, setServerError] = useState("");
@@ -188,6 +197,7 @@ function FormNounou({ agenceId, nounou, onClose }: FormNounouProps) {
         quartier: formData.quartier,
         experience: formData.experience,
         langues: languesArray,
+        tache: formData.tache || null,
         tarif: parseInt(formData.tarif, 10),
       };
 
@@ -250,7 +260,7 @@ function FormNounou({ agenceId, nounou, onClose }: FormNounouProps) {
                 <>
                   <Camera size={32} />
                   <span>Cliquez pour ajouter une photo</span>
-                  <small style={{ color: "#78716C", fontSize: 11, marginTop: 4 }}>Format JPG, PNG (max 2MB)</small>
+                  <small style={{ color: "#8A867A", fontSize: 11, marginTop: 4 }}>Format JPG, PNG (max 2MB)</small>
                 </>
               )}
               <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileChange} />
@@ -289,13 +299,25 @@ function FormNounou({ agenceId, nounou, onClose }: FormNounouProps) {
 
           <div className="form-row">
             <div className="form-group">
-              <label>Tarif (FCFA / jour) <span className="required">*</span></label>
-              <input type="number" name="tarif" placeholder="8500" value={formData.tarif} onChange={handleChange} required />
+              <label>Salaire (FCFA / mois) <span className="required">*</span></label>
+              <input type="number" name="tarif" placeholder="60000" value={formData.tarif} onChange={handleChange} required />
             </div>
             <div className="form-group">
               <label>Langues <span className="required">*</span></label>
               <input type="text" name="langues" placeholder="Français, Moore, Dioula" value={formData.langues} onChange={handleChange} required />
               <small>Séparées par des virgules</small>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Tâche <span className="required">*</span></label>
+              <select name="tache" value={formData.tache} onChange={handleChange} required>
+                <option value="">Sélectionnez</option>
+                {TACHES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -409,33 +431,33 @@ export default function GestionNounous({ agenceId, onBack }: { agenceId?: string
         /* ============================================================ */
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
         .header-left { display: flex; align-items: center; gap: 10px; }
-        .btn-back { background: transparent; border: none; color: #78716C; cursor: pointer; padding: 4px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
-        .btn-back:hover { background: #F2D6D8; color: #C2614F; }
-        .header-title { font-size: 18px; font-weight: 700; color: #1C1917; }
-        .header-count { font-size: 13px; color: #78716C; background: #F5F0EB; padding: 2px 12px; border-radius: 50px; }
-        .btn-add { display: flex; align-items: center; gap: 6px; padding: 8px 20px; background: #C2614F; color: white; border: none; border-radius: 50px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.25s ease; }
-        .btn-add:hover { background: #B25545; box-shadow: 0 4px 16px rgba(194,97,79,0.3); }
+        .btn-back { background: transparent; border: none; color: #8A867A; cursor: pointer; padding: 4px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .btn-back:hover { background: #FFF3D6; color: #F3811E; }
+        .header-title { font-size: 18px; font-weight: 700; color: #211B14; }
+        .header-count { font-size: 13px; color: #8A867A; background: #F1F0EC; padding: 2px 12px; border-radius: 50px; }
+        .btn-add { display: flex; align-items: center; gap: 6px; padding: 8px 20px; background: #F3811E; color: white; border: none; border-radius: 50px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.25s ease; }
+        .btn-add:hover { background: #C1631B; box-shadow: 0 4px 16px rgba(194,97,79,0.3); }
 
         /* ============================================================ */
         /* SEARCH + FILTRES                                             */
         /* ============================================================ */
         .search-filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
         .search-bar { flex: 1; min-width: 200px; display: flex; align-items: center; gap: 10px; background: white; border-radius: 12px; padding: 10px 16px; border: 1px solid rgba(212,184,150,0.15); transition: all 0.25s ease; }
-        .search-bar:focus-within { border-color: #C2614F; box-shadow: 0 0 0 4px rgba(194,97,79,0.08); }
-        .search-bar svg { color: #78716C; flex-shrink: 0; }
-        .search-bar input { flex: 1; border: none; background: transparent; font-size: 14px; color: #1C1917; outline: none; font-family: inherit; }
-        .search-bar input::placeholder { color: #78716C; opacity: 0.6; }
+        .search-bar:focus-within { border-color: #F3811E; box-shadow: 0 0 0 4px rgba(194,97,79,0.08); }
+        .search-bar svg { color: #8A867A; flex-shrink: 0; }
+        .search-bar input { flex: 1; border: none; background: transparent; font-size: 14px; color: #211B14; outline: none; font-family: inherit; }
+        .search-bar input::placeholder { color: #8A867A; opacity: 0.6; }
         .filter-group { display: flex; gap: 8px; flex-wrap: wrap; }
-        .filter-select { padding: 10px 14px; border: 1px solid rgba(212,184,150,0.15); border-radius: 12px; background: white; font-size: 13px; color: #1C1917; outline: none; cursor: pointer; transition: all 0.25s ease; font-family: inherit; min-width: 100px; }
-        .filter-select:focus { border-color: #C2614F; box-shadow: 0 0 0 4px rgba(194,97,79,0.08); }
+        .filter-select { padding: 10px 14px; border: 1px solid rgba(212,184,150,0.15); border-radius: 12px; background: white; font-size: 13px; color: #211B14; outline: none; cursor: pointer; transition: all 0.25s ease; font-family: inherit; min-width: 100px; }
+        .filter-select:focus { border-color: #F3811E; box-shadow: 0 0 0 4px rgba(194,97,79,0.08); }
 
         /* ============================================================ */
         /* GRILLE                                                       */
         /* ============================================================ */
         .nounous-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #78716C; }
-        .empty-state svg { color: #D4B896; margin-bottom: 12px; }
-        .empty-state h3 { font-size: 18px; color: #1C1917; margin-bottom: 4px; }
+        .empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #8A867A; }
+        .empty-state svg { color: #C1631B; margin-bottom: 12px; }
+        .empty-state h3 { font-size: 18px; color: #211B14; margin-bottom: 4px; }
 
         /* ============================================================ */
         /* CARTE NOUNOU                                                 */
@@ -444,26 +466,26 @@ export default function GestionNounous({ agenceId, onBack }: { agenceId?: string
         .nounou-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(28,25,23,0.08); border-color: rgba(194,97,79,0.12); }
         .nounou-card-top { display: flex; gap: 14px; cursor: pointer; }
         .nounou-avatar { position: relative; flex-shrink: 0; }
-        .nounou-avatar img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #F5F0EB; }
-        .avatar-initials { width: 60px; height: 60px; border-radius: 50%; background: #C2614F; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; border: 2px solid #F5F0EB; }
-        .btn-edit-card { position: absolute; top: 12px; right: 12px; background: transparent; border: none; color: #78716C; cursor: pointer; padding: 4px; border-radius: 50%; transition: all 0.2s; }
-        .btn-edit-card:hover { background: #F5F0EB; color: #C2614F; }
+        .nounou-avatar img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #F1F0EC; }
+        .avatar-initials { width: 60px; height: 60px; border-radius: 50%; background: #F3811E; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; border: 2px solid #F1F0EC; }
+        .btn-edit-card { position: absolute; top: 12px; right: 12px; background: transparent; border: none; color: #8A867A; cursor: pointer; padding: 4px; border-radius: 50%; transition: all 0.2s; }
+        .btn-edit-card:hover { background: #F1F0EC; color: #F3811E; }
 
         .nounou-info { flex: 1; min-width: 0; }
-        .nounou-info h3 { font-size: 16px; font-weight: 700; color: #1C1917; margin: 0 0 4px 0; }
-        .nounou-meta { display: flex; gap: 12px; font-size: 12px; color: #78716C; margin-bottom: 6px; }
+        .nounou-info h3 { font-size: 16px; font-weight: 700; color: #211B14; margin: 0 0 4px 0; }
+        .nounou-meta { display: flex; gap: 12px; font-size: 12px; color: #8A867A; margin-bottom: 6px; }
         .nounou-meta span { display: flex; align-items: center; gap: 3px; }
         .nounou-badges { display: flex; gap: 4px; flex-wrap: wrap; }
-        .badge-type { font-size: 10px; font-weight: 600; padding: 2px 10px; border-radius: 50px; background: #C2614F18; color: #C2614F; }
+        .badge-type { font-size: 10px; font-weight: 600; padding: 2px 10px; border-radius: 50px; background: #F3811E18; color: #F3811E; }
         .badge-ethnie { font-size: 10px; font-weight: 600; padding: 2px 10px; border-radius: 50px; background: #4A7C5918; color: #4A7C59; }
 
-        .nounou-card-bottom { border-top: 1px solid #F5F0EB; padding-top: 12px; margin-top: 4px; }
+        .nounou-card-bottom { border-top: 1px solid #F1F0EC; padding-top: 12px; margin-top: 4px; }
         .nounou-rating { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
         .stars { display: flex; gap: 1px; }
-        .note { font-weight: 700; font-size: 14px; color: #1C1917; }
-        .avis { font-size: 12px; color: #78716C; }
-        .nounou-price { display: flex; align-items: center; gap: 2px; font-weight: 700; color: #C2614F; font-size: 15px; margin-bottom: 6px; }
-        .nounou-price small { font-weight: 400; color: #78716C; font-size: 12px; }
+        .note { font-weight: 700; font-size: 14px; color: #211B14; }
+        .avis { font-size: 12px; color: #8A867A; }
+        .nounou-price { display: flex; align-items: center; gap: 2px; font-weight: 700; color: #F3811E; font-size: 15px; margin-bottom: 6px; }
+        .nounou-price small { font-weight: 400; color: #8A867A; font-size: 12px; }
 
         .nounou-statut-toggle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
         .statut-label { font-size: 12px; font-weight: 600; }
@@ -476,7 +498,7 @@ export default function GestionNounous({ agenceId, onBack }: { agenceId?: string
         .toggle-btn.disponible .toggle-slider { left: 22px; }
 
         .nounou-competences { display: flex; gap: 4px; flex-wrap: wrap; }
-        .competence-tag { font-size: 10px; padding: 2px 10px; border-radius: 50px; background: #F5F0EB; color: #6B5E4F; }
+        .competence-tag { font-size: 10px; padding: 2px 10px; border-radius: 50px; background: #F1F0EC; color: #5C574C; }
 
         /* ============================================================ */
         /* MODAL                                                        */
@@ -485,33 +507,33 @@ export default function GestionNounous({ agenceId, onBack }: { agenceId?: string
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .modal-content { background: white; border-radius: 20px; max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px 28px; animation: slideUp 0.3s ease; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid #F5F0EB; margin-bottom: 16px; }
-        .modal-header h2 { font-size: 20px; font-weight: 700; color: #1C1917; }
-        .modal-close { background: transparent; border: none; color: #78716C; cursor: pointer; padding: 4px; border-radius: 8px; transition: all 0.2s; }
-        .modal-close:hover { background: #F5F0EB; color: #1C1917; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid #F1F0EC; margin-bottom: 16px; }
+        .modal-header h2 { font-size: 20px; font-weight: 700; color: #211B14; }
+        .modal-close { background: transparent; border: none; color: #8A867A; cursor: pointer; padding: 4px; border-radius: 8px; transition: all 0.2s; }
+        .modal-close:hover { background: #F1F0EC; color: #211B14; }
 
         .modal-form { display: flex; flex-direction: column; gap: 14px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         .form-group { display: flex; flex-direction: column; gap: 4px; }
-        .form-group label { font-size: 13px; font-weight: 600; color: #1C1917; }
-        .form-group .required { color: #C2614F; }
-        .form-group input, .form-group select, .form-group textarea { padding: 10px 14px; border: 1.5px solid #F2D6D8; border-radius: 10px; font-size: 14px; background: #FAF7F2; color: #1C1917; outline: none; transition: all 0.25s ease; font-family: inherit; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #C2614F; background: white; box-shadow: 0 0 0 4px rgba(194,97,79,0.06); }
-        .form-group small { font-size: 11px; color: #78716C; }
+        .form-group label { font-size: 13px; font-weight: 600; color: #211B14; }
+        .form-group .required { color: #F3811E; }
+        .form-group input, .form-group select, .form-group textarea { padding: 10px 14px; border: 1.5px solid #FFF3D6; border-radius: 10px; font-size: 14px; background: #F1F0EC; color: #211B14; outline: none; transition: all 0.25s ease; font-family: inherit; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #F3811E; background: white; box-shadow: 0 0 0 4px rgba(194,97,79,0.06); }
+        .form-group small { font-size: 11px; color: #8A867A; }
 
         .photo-group { grid-column: 1 / -1; }
-        .photo-upload { border: 2px dashed #F2D6D8; border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.25s ease; position: relative; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .photo-upload:hover { border-color: #C2614F; background: #FAF7F2; }
+        .photo-upload { border: 2px dashed #FFF3D6; border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.25s ease; position: relative; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .photo-upload:hover { border-color: #F3811E; background: #F1F0EC; }
         .photo-upload input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-        .photo-upload svg { color: #C2614F; margin-bottom: 6px; }
-        .photo-upload span { font-size: 13px; color: #78716C; }
-        .photo-preview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #C2614F; }
+        .photo-upload svg { color: #F3811E; margin-bottom: 6px; }
+        .photo-upload span { font-size: 13px; color: #8A867A; }
+        .photo-preview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #F3811E; }
 
-        .form-actions { display: flex; gap: 12px; justify-content: flex-end; padding-top: 12px; border-top: 1px solid #F5F0EB; margin-top: 4px; }
-        .btn-cancel { padding: 10px 24px; background: transparent; border: 1.5px solid #F2D6D8; border-radius: 50px; font-size: 14px; font-weight: 600; color: #78716C; cursor: pointer; transition: all 0.25s ease; }
-        .btn-cancel:hover { border-color: #C2614F; color: #C2614F; }
-        .btn-submit { display: flex; align-items: center; gap: 8px; padding: 10px 28px; background: #C2614F; border: none; border-radius: 50px; font-size: 14px; font-weight: 600; color: white; cursor: pointer; transition: all 0.25s ease; }
-        .btn-submit:hover { background: #B25545; box-shadow: 0 4px 16px rgba(194,97,79,0.3); }
+        .form-actions { display: flex; gap: 12px; justify-content: flex-end; padding-top: 12px; border-top: 1px solid #F1F0EC; margin-top: 4px; }
+        .btn-cancel { padding: 10px 24px; background: transparent; border: 1.5px solid #FFF3D6; border-radius: 50px; font-size: 14px; font-weight: 600; color: #8A867A; cursor: pointer; transition: all 0.25s ease; }
+        .btn-cancel:hover { border-color: #F3811E; color: #F3811E; }
+        .btn-submit { display: flex; align-items: center; gap: 8px; padding: 10px 28px; background: #F3811E; border: none; border-radius: 50px; font-size: 14px; font-weight: 600; color: white; cursor: pointer; transition: all 0.25s ease; }
+        .btn-submit:hover { background: #C1631B; box-shadow: 0 4px 16px rgba(194,97,79,0.3); }
 
         /* ============================================================ */
         /* RESPONSIVE                                                   */

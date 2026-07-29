@@ -134,16 +134,16 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
         /* VARIABLES                                                    */
         /* ============================================================ */
         :root {
-          --terracotta: #C2614F;
-          --terracotta-light: #D4818A;
-          --terracotta-lighter: #F2D6D8;
-          --terracotta-pale: #F8EDEE;
+          --terracotta: #F3811E;
+          --terracotta-light: #F5A855;
+          --terracotta-lighter: #FFF3D6;
+          --terracotta-pale: #FFF7E6;
           --sauge: #4A7C59;
-          --beige-light: #F8F6F5;
-          --gris-fonce: #1C1917;
-          --gris-moyen: #78716C;
+          --beige-light: #FBF8F4;
+          --gris-fonce: #211B14;
+          --gris-moyen: #8A867A;
           --blanc: #FFFFFF;
-          --shadow: 0 4px 20px rgba(28, 25, 23, 0.06);
+          --shadow: 0 4px 20px rgba(33, 27, 20, 0.06);
           --radius: 20px;
           --radius-sm: 14px;
         }
@@ -413,7 +413,7 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
         }
 
         .btn-lancer-recherche:hover {
-          background: #B25545;
+          background: #C1631B;
           box-shadow: 0 4px 16px rgba(194, 97, 79, 0.3);
         }
 
