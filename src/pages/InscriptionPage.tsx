@@ -39,7 +39,7 @@ const validatePhoneNumber = (phone: string): boolean => {
 //
 // 2. Seules les nounous sans agence s'inscrivent sur la plateforme :
 //    le formulaire ne propose plus que l'auto-inscription libre (nom,
-//    prénom, commune, PIN), via la RPC `nounou_self_register`
+//    prénom, secteur, PIN), via la RPC `nounou_self_register`
 //    (cf. migration 0012_nounou_self_insert.sql). L'ancien parcours
 //    d'« activation » réservé aux nounous déjà ajoutées par une
 //    agence (via `claim_nounou_profile`) a été retiré.
@@ -64,11 +64,8 @@ export default function InscriptionPage() {
     // qui n'attendent toujours qu'un seul champ "nom".
     prenom: "",
     telephone: "",
-    quartier: "",
+    secteur: "",
     ethnie: "",
-    // Champ repris de cprincess, transmis à nounou_self_register
-    // (cf. migration 0016_nounou_self_register_experience.sql).
-    experience: "",
     email: "",
     description: "",
   });
@@ -130,8 +127,8 @@ export default function InscriptionPage() {
       setServerError(`Veuillez entrer un code PIN à ${PIN_LENGTH} chiffres.`);
       return;
     }
-    if ((profil !== "nounou" || isSelfRegisterNounou) && !formData.quartier) {
-      setServerError("Veuillez sélectionner votre quartier.");
+    if ((profil !== "nounou" || isSelfRegisterNounou) && !formData.secteur) {
+      setServerError("Veuillez sélectionner votre secteur.");
       return;
     }
     if (isSelfRegisterNounou && (!formData.prenom || !formData.nom)) {
@@ -158,13 +155,12 @@ export default function InscriptionPage() {
         pendingProfile:
           profil === "nounou"
             ? undefined
-            : { nom: formData.nom, telephone: formData.telephone, quartier: formData.quartier },
+            : { nom: formData.nom, telephone: formData.telephone, quartier: formData.secteur },
         nounouSelfRegister: isSelfRegisterNounou
           ? {
               nom: `${formData.prenom} ${formData.nom}`.trim(),
-              quartier: formData.quartier,
+              quartier: formData.secteur,
               ethnie: formData.ethnie || undefined,
-              experience: formData.experience || undefined,
             }
           : undefined,
       });
@@ -247,7 +243,7 @@ export default function InscriptionPage() {
     const isMenage = profil === "menage";
     const isNounou = profil === "nounou";
     const isSelfRegisterNounou = isNounou;
-    const showNomQuartier = !isNounou || isSelfRegisterNounou;
+    const showNomSecteur = !isNounou || isSelfRegisterNounou;
 
     return (
       <div className="inscription-grid">
@@ -267,7 +263,7 @@ export default function InscriptionPage() {
           <p className="form-subtitle">
             {isMenage && "Remplissez vos informations pour commencer"}
             {isAgence && "Créez l'espace professionnel de votre agence"}
-            {isNounou && "Inscrivez-vous pour être visible auprès des agences de votre quartier"}
+            {isNounou && "Inscrivez-vous pour être visible auprès des agences de votre secteur"}
           </p>
 
           {serverError && (
@@ -303,7 +299,7 @@ export default function InscriptionPage() {
                 </div>
               </div>
             )}
-            {showNomQuartier && !isSelfRegisterNounou && (
+            {showNomSecteur && !isSelfRegisterNounou && (
               <div className="form-group">
                 <label>
                   {isAgence ? "Nom de l'agence" : "Prénom et Nom"} <span className="required">*</span>
@@ -338,13 +334,13 @@ export default function InscriptionPage() {
               {phoneError && <span className="error-message">{phoneError}</span>}
             </div>
 
-            {/* Quartier : pas demandé à la nounou en activation (déjà renseigné par l'agence) */}
+            {/* Secteur : pas demandé à la nounou en activation (déjà renseigné par l'agence) */}
             {/* Nounou en auto-inscription : liste de communes élargie (reprise de cprincess) */}
             {isSelfRegisterNounou && (
               <div className="form-group">
-                <label>Commune <span className="required">*</span></label>
-                <select name="quartier" value={formData.quartier} onChange={handleChange} required>
-                  <option value="">Sélectionnez votre commune</option>
+                <label>Secteur <span className="required">*</span></label>
+                <select name="secteur" value={formData.secteur} onChange={handleChange} required>
+                  <option value="">Sélectionnez votre secteur</option>
                   <option value="Abobo">Abobo</option>
                   <option value="Cocody">Cocody</option>
                   <option value="Koumassi">Koumassi</option>
@@ -358,45 +354,35 @@ export default function InscriptionPage() {
                 </select>
               </div>
             )}
-            {showNomQuartier && !isSelfRegisterNounou && (
+            {showNomSecteur && !isSelfRegisterNounou && (
               <div className="form-group">
-                <label>Quartier <span className="required">*</span></label>
-                <select name="quartier" value={formData.quartier} onChange={handleChange} required>
-                  <option value="">Sélectionnez votre quartier</option>
+                <label>Secteur <span className="required">*</span></label>
+                <select name="secteur" value={formData.secteur} onChange={handleChange} required>
+                  <option value="">Sélectionnez votre secteur</option>
                   <option value="Abobo">Abobo</option>
                   <option value="Cocody">Cocody</option>
                   <option value="Koumassi">Koumassi</option>
                   <option value="Plateau">Plateau</option>
                   <option value="Yopougon">Yopougon</option>
+                  <option value="Bingerville">Bingerville</option>
+                  <option value="Bassam">Bassam</option>
+                  <option value="Macory">Macory</option>
+                  <option value="N'dotré">N'dotré</option>
                 </select>
               </div>
             )}
 
             {isSelfRegisterNounou && (
-              <>
-                <div className="form-group">
-                  <label>Ethnie <span className="optional">(optionnel)</span></label>
-                  <input
-                    type="text"
-                    name="ethnie"
-                    placeholder="Akan, Baoulé, Malinké, etc."
-                    value={formData.ethnie}
-                    onChange={handleChange}
-                  />
-                </div>
-                {/* Repris de cprincess, laissé optionnel : si vide, le
-                    backend (nounou_self_register) stocke 'Non renseigné'. */}
-                <div className="form-group">
-                  <label>Expérience professionnelle <span className="optional">(optionnel)</span></label>
-                  <textarea
-                    name="experience"
-                    placeholder="Ex : 3 ans d'expérience en garde d'enfants, ancienne nounou chez le ménage Koffi..."
-                    value={formData.experience}
-                    onChange={handleChange}
-                    rows={3}
-                  />
-                </div>
-              </>
+              <div className="form-group">
+                <label>Ethnie <span className="optional">(optionnel)</span></label>
+                <input
+                  type="text"
+                  name="ethnie"
+                  placeholder="Akan, Baoulé, Malinké, etc."
+                  value={formData.ethnie}
+                  onChange={handleChange}
+                />
+              </div>
             )}
 
             {isAgence && (
@@ -526,7 +512,7 @@ export default function InscriptionPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #FAF7F2;
+          background-color: #F7F7F7;
           padding: clamp(16px, 4vw, 60px);
           font-family: "Inter", sans-serif;
         }
@@ -537,7 +523,7 @@ export default function InscriptionPage() {
           background: white;
           border-radius: 32px;
           padding: clamp(24px, 5vw, 56px);
-          box-shadow: 0 24px 80px rgba(28, 25, 23, 0.06);
+          box-shadow:0 24px 80px rgba(28, 25, 23, 0.06);
           border: 1px solid rgba(212, 184, 150, 0.12);
         }
 
@@ -691,7 +677,7 @@ export default function InscriptionPage() {
         }
 
         .form-group .required {
-          color: #C2614F;
+          color: #F9940E;
         }
 
         .form-group .optional {
@@ -741,7 +727,7 @@ export default function InscriptionPage() {
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
-          border-color: #C2614F;
+          border-color: #F9940E;
         }
 
         .form-group input::placeholder,
@@ -772,7 +758,7 @@ export default function InscriptionPage() {
         }
 
         .pin-icon {
-          color: #C2614F;
+          color: #F9940E;
         }
 
         .pin-container {
@@ -797,7 +783,7 @@ export default function InscriptionPage() {
         }
 
         .pin-input:focus {
-          border-color: #C2614F;
+          border-color: #F9940E;
         }
 
         .pin-toggle {
@@ -815,7 +801,7 @@ export default function InscriptionPage() {
         }
 
         .submit-button {
-          background: #C2614F;
+          background: linear-gradient(90deg, #FFC408 0%, #F9940E 100%);
           color: white;
           border: none;
           padding: 16px;
@@ -823,7 +809,7 @@ export default function InscriptionPage() {
           font-size: clamp(16px, 1vw, 17px);
           font-weight: 700;
           cursor: pointer;
-          transition: background 0.2s, transform 0.2s;
+          transition: opacity 0.2s, transform 0.2s;
           margin-top: 4px;
           display: flex;
           align-items: center;
@@ -832,7 +818,7 @@ export default function InscriptionPage() {
         }
 
         .submit-button:hover {
-          background: #B25545;
+          opacity: 0.9;
         }
 
         .login-link {
@@ -843,7 +829,7 @@ export default function InscriptionPage() {
         }
 
         .login-link a {
-          color: #C2614F;
+          color: #F9940E;
           font-weight: 600;
           text-decoration: none;
           cursor: pointer;

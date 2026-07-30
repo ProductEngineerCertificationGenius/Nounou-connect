@@ -32,8 +32,8 @@ export function Avatar({
 
   const getColorFromName = (name: string): string => {
     const colors = [
-      "#C2614F", "#4A7C59", "#D4B896", "#2D6A8A",
-      "#8B6B4A", "#6B5E8A", "#D4818A", "#5A8A6B",
+      "#F3811E", "#4A7C59", "#C1631B", "#2D6A8A",
+      "#8B6B4A", "#6B5E8A", "#F5A855", "#5A8A6B",
       "#B8860B", "#CD853F",
     ];
     let hash = 0;
@@ -84,7 +84,7 @@ export function Avatar({
         overflow: "hidden",
         flexShrink: 0,
         position: "relative",
-        backgroundColor: "#F5F0EB",
+        backgroundColor: "#F1F0EC",
       }}
     >
       {isLoading && (
@@ -96,7 +96,7 @@ export function Avatar({
             left: 0,
             right: 0,
             bottom: 0,
-            background: "linear-gradient(90deg, #F5F0EB 25%, #E8DDD0 50%, #F5F0EB 75%)",
+            background: "linear-gradient(90deg, #F1F0EC 25%, #E5DFD2 50%, #F1F0EC 75%)",
             backgroundSize: "200% 100%",
             animation: "shimmer 1.5s infinite",
             borderRadius,

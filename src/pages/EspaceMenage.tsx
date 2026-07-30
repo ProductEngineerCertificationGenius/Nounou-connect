@@ -1,20 +1,17 @@
 // src/pages/EspaceMenage.tsx
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Home,
   FileText,
   User,
-  Bell,
-  LogOut,
   Search,
   MapPin,
   Star,
   Briefcase,
   Shield,
   Languages,
-  ChevronLeft,
-  ChevronRight,
   ArrowLeft,
   Phone,
 } from "lucide-react";
@@ -22,6 +19,7 @@ import { Logo } from "../components/Logo";
 import { useLogout } from "../hooks/useAuth";
 import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { getErrorMessage } from "../lib/errorHandler";
 import RechercheNounou from "./RechercheNounou";
 import DemandesPage from "./DemandesPage";
 import ProfilPage from "./ProfilPage";
@@ -33,6 +31,7 @@ interface NounouAffichee {
   id: string;
   nom: string;
   quartier: string;
+  tache?: string;
   tarif: number;
   experience: string;
   langues: string[];
@@ -40,7 +39,7 @@ interface NounouAffichee {
   telephone: string;
   note_moyenne?: number;
   photo_url?: string;
-  agence?: { nom: string };
+  agence?: { nom: string; telephone?: string };
 }
 
 interface Avis {
@@ -48,6 +47,12 @@ interface Avis {
   note: number;
   commentaire?: string;
   menage?: { nom: string };
+}
+
+interface DemandeAAvis {
+  id: string;
+  date_assignation: string;
+  nounou_assignee: { id: string; nom: string; photo_url?: string } | null;
 }
 
 // ================================================================
@@ -63,15 +68,16 @@ interface Avis {
 // ================================================================
 
 export default function EspaceMenage() {
+  const navigate = useNavigate();
   const onLogout = useLogout();
   const { user, profileType } = useAuthStore();
+  const currentUserId = user?.id;
   
   console.log("[EspaceMenage] Montage, user/profileType:", { userId: user?.id, profileType });
   
   const [activeTab, setActiveTab] = useState<Tab>("accueil");
   const [selectedNounouId, setSelectedNounouId] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [showDemandes, setShowDemandes] = useState(false);
   const [showProfil, setShowProfil] = useState(false);
@@ -86,8 +92,15 @@ export default function EspaceMenage() {
         
         const { data, error } = await supabase
           .from("nounous_public")
-          .select("*, agence:agences(nom)")
+          .select("*, agence:agences(nom, telephone)")
           .eq("disponible", true)
+          // Une nounou sans agence (auto-inscription, agence_id NULL,
+          // cf. 0012_nounou_self_insert.sql) ne doit pas apparaître ici :
+          // elle n'est pas encore affiliée/validée par une agence, donc
+          // aucune demande ne peut être créée pour elle (demandes.agence_id
+          // est NOT NULL, cf. 0001_schema.sql). Même correctif que la RPC
+          // rechercher_nounous (0022_rechercher_nounous_avec_agence.sql).
+          .not("agence_id", "is", null)
           .limit(20);
         if (error) throw error;
         return data as NounouAffichee[];
@@ -114,6 +127,63 @@ export default function EspaceMenage() {
     },
   });
 
+  // ------------------------------------------------------------
+  // Relance d'avis à J+7 : une fois qu'une agence a confirmé
+  // l'assignation d'une nounou (statut "Assignée", date_assignation
+  // posée par assigner_nounou() — cf. 0019_relance_avis_j7.sql) et
+  // que 7 jours se sont écoulés, on invite la famille à noter la
+  // nounou si ce n'est pas déjà fait pour CETTE mise en relation
+  // précise (via avis.demande_id, pas juste nounou_id+menage_id, pour
+  // ne pas bloquer une relance sur un 2e séjour avec la même nounou).
+  // ------------------------------------------------------------
+  const queryClient = useQueryClient();
+
+  const { data: demandesAAvis } = useQuery({
+    queryKey: ["demandes-a-avis", currentUserId],
+    enabled: Boolean(currentUserId) && isSupabaseConfigured,
+    queryFn: async () => {
+      const ilYA7Jours = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("demandes")
+        .select("id, date_assignation, nounou_assignee:nounous!nounou_assignee_id(id, nom, photo_url)")
+        .eq("menage_id", currentUserId!)
+        .eq("statut", "Assignée")
+        .not("nounou_assignee_id", "is", null)
+        .lte("date_assignation", ilYA7Jours);
+      if (error) throw error;
+
+      const { data: avisExistants, error: avisError } = await supabase
+        .from("avis")
+        .select("demande_id")
+        .eq("menage_id", currentUserId!)
+        .not("demande_id", "is", null);
+      if (avisError) throw avisError;
+
+      const demandesDejaNotees = new Set((avisExistants ?? []).map((a) => a.demande_id));
+      return (data ?? []).filter((d) => !demandesDejaNotees.has(d.id)) as unknown as DemandeAAvis[];
+    },
+  });
+
+  const [avisEnCours, setAvisEnCours] = useState<{ demandeId: string; note: number; commentaire: string } | null>(null);
+
+  const envoyerAvis = useMutation({
+    mutationFn: async (params: { demandeId: string; nounouId: string; note: number; commentaire: string }) => {
+      const { error } = await supabase.from("avis").insert({
+        demande_id: params.demandeId,
+        nounou_id: params.nounouId,
+        menage_id: currentUserId!,
+        note: params.note,
+        commentaire: params.commentaire.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setAvisEnCours(null);
+      queryClient.invalidateQueries({ queryKey: ["demandes-a-avis", currentUserId] });
+    },
+    onError: (err) => alert(getErrorMessage(err)),
+  });
+
   const handleNounouClick = (nounou: NounouAffichee) => {
     setSelectedNounouId(nounou.id);
     setView("detail");
@@ -124,8 +194,12 @@ export default function EspaceMenage() {
     setSelectedNounouId(null);
   };
 
-  const handleContactWhatsApp = (telephone: string) => {
-    window.open(`https://wa.me/${telephone.replace(/[^0-9]/g, "")}`, "_blank");
+  const handleContactWhatsApp = (telephone?: string) => {
+    if (!telephone) {
+      alert("Numéro de l'agence indisponible pour le moment.");
+      return;
+    }
+    window.open(`https://wa.me/225${telephone.replace(/[^0-9]/g, "").replace(/^0+/, "")}`, "_blank");
   };
 
   // Un seul point d'entrée pour changer d'onglet : `activeTab` (utilisé
@@ -147,35 +221,13 @@ export default function EspaceMenage() {
   const handleDemandesClose = () => handleGoTo("accueil");
   const handleProfilClose = () => handleGoTo("accueil");
 
-  const renderSidebar = () => (
-    <aside className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
-      <div className="sidebar-header"><Logo size={32} /><span className="sidebar-title">Nounou Connect</span></div>
-      <nav className="sidebar-nav">
-        <button className={activeTab === "accueil" ? "active" : ""} onClick={() => handleGoTo("accueil")}>
-          <Home size={20} /><span>Accueil</span>
-        </button>
-        <button className={activeTab === "demandes" ? "active" : ""} onClick={() => handleGoTo("demandes")}>
-          <FileText size={20} /><span>Demandes</span>
-        </button>
-        <button className={activeTab === "profil" ? "active" : ""} onClick={() => handleGoTo("profil")}>
-          <User size={20} /><span>Profil</span>
-        </button>
-      </nav>
-      <div className="sidebar-footer">
-        <button onClick={onLogout} className="logout-btn"><LogOut size={20} /><span>Déconnexion</span></button>
-      </div>
-      <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
-        {sidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-      </button>
-    </aside>
-  );
-
   const renderMobileHeader = () => (
     <header className="mobile-header">
-      <div className="mobile-logo"><Logo size={28} /><span>Nounou Connect</span></div>
-      <div className="mobile-actions">
-        <button className="icon-btn"><Bell size={18} /></button>
-        <button className="icon-btn" onClick={onLogout}><LogOut size={18} /></button>
+      <div className="mobile-logo">
+        <button className="btn-home" onClick={() => navigate("/")} title="Retour à l'accueil">
+          <ArrowLeft size={18} />
+        </button>
+        <Logo size={28} /><span>Nounou Connect</span>
       </div>
     </header>
   );
@@ -186,7 +238,7 @@ export default function EspaceMenage() {
       <div className="nounou-card-info">
         <div className="nounou-name">{nounou.nom}</div>
         <div className="nounou-quartier"><MapPin size={10} /> {nounou.quartier}</div>
-        <div className="nounou-prix-mobile">{nounou.tarif.toLocaleString()} FCFA</div>
+        <div className="nounou-prix-mobile">{nounou.tarif.toLocaleString()} FCFA / mois</div>
         {nounou.disponible && <span className="badge-disponible-mobile">✅ Disponible</span>}
       </div>
     </div>
@@ -207,11 +259,16 @@ export default function EspaceMenage() {
           <span><MapPin size={14} /> {nounou.quartier}</span>
           <span><Briefcase size={14} /> {nounou.experience}</span>
         </div>
+        {nounou.tache && (
+          <div className="nounou-card-details">
+            <span>{nounou.tache}</span>
+          </div>
+        )}
         <div className="nounou-card-tags">
           {(nounou.langues ?? []).map((l) => <span key={l} className="tag">{l}</span>)}
         </div>
         <div className="nounou-card-footer">
-          <div className="nounou-prix-desktop"><span>{nounou.tarif.toLocaleString()} FCFA</span></div>
+          <div className="nounou-prix-desktop"><span>{nounou.tarif.toLocaleString()} FCFA</span><small> / mois</small></div>
           {nounou.agence?.nom && <div className="nounou-agence"><Shield size={14} /><span>{nounou.agence.nom}</span></div>}
         </div>
       </div>
@@ -220,11 +277,78 @@ export default function EspaceMenage() {
 
   const renderListView = () => (
     <div className="content-area">
-      <div className="greeting"><h1>Bonjour 👋</h1><p>Trouvez la nounou idéale près de chez vous</p></div>
+      <div className="greeting"><h1>Bonjour, <strong>{user?.nom || "..."}</strong> 👋</h1><p>Trouvez la nounou idéale près de chez vous</p></div>
 
-      <div className="search-wrapper" onClick={handleSearchClick}>
-        <div className="search-circle"><Search size={40} strokeWidth={1.5} /></div>
-        <span className="search-label">Rechercher une nounou</span>
+      {(demandesAAvis ?? []).map((demande) => {
+        if (!demande.nounou_assignee) return null;
+        const enCours = avisEnCours?.demandeId === demande.id;
+        return (
+          <div key={demande.id} className="avis-reminder">
+            <div className="avis-reminder-header">
+              {demande.nounou_assignee.photo_url ? (
+                <img src={demande.nounou_assignee.photo_url} alt={demande.nounou_assignee.nom} />
+              ) : (
+                <div className="avis-reminder-avatar-fallback">{demande.nounou_assignee.nom[0]}</div>
+              )}
+              <div>
+                <strong>{demande.nounou_assignee.nom}</strong> s'occupe de votre famille depuis une semaine.
+                <br />Comment ça se passe ?
+              </div>
+            </div>
+
+            {!enCours ? (
+              <button
+                className="avis-reminder-cta"
+                onClick={() => setAvisEnCours({ demandeId: demande.id, note: 0, commentaire: "" })}
+              >
+                Laisser un avis
+              </button>
+            ) : (
+              <div className="avis-reminder-form">
+                <div className="avis-stars">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setAvisEnCours({ ...avisEnCours, note: n })}
+                      aria-label={`${n} étoile${n > 1 ? "s" : ""}`}
+                    >
+                      <Star size={26} color="#F59E0B" fill={n <= avisEnCours.note ? "#F59E0B" : "none"} />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  placeholder="Dites-nous ce que vous en pensez (facultatif)"
+                  value={avisEnCours.commentaire}
+                  onChange={(e) => setAvisEnCours({ ...avisEnCours, commentaire: e.target.value })}
+                  rows={3}
+                />
+                <div className="avis-reminder-actions">
+                  <button className="btn-annuler" onClick={() => setAvisEnCours(null)}>Annuler</button>
+                  <button
+                    className="btn-envoyer-avis"
+                    disabled={avisEnCours.note === 0 || envoyerAvis.isPending}
+                    onClick={() =>
+                      envoyerAvis.mutate({
+                        demandeId: demande.id,
+                        nounouId: demande.nounou_assignee!.id,
+                        note: avisEnCours.note,
+                        commentaire: avisEnCours.commentaire,
+                      })
+                    }
+                  >
+                    Envoyer
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="search-bar" onClick={handleSearchClick}>
+        <span className="search-bar-placeholder">Rechercher une nounou</span>
+        <Search size={20} strokeWidth={2} />
       </div>
 
       <section className="nounous-section">
@@ -238,7 +362,7 @@ export default function EspaceMenage() {
           {(nounousDisponibles ?? []).map((nounou) => renderNounouCardDesktop(nounou))}
         </div>
         {(nounousDisponibles ?? []).length === 0 && (
-          <p style={{ color: "#78716C", fontSize: 14 }}>Aucune nounou disponible pour le moment.</p>
+          <p style={{ color: "#8A867A", fontSize: 14 }}>Aucune nounou disponible pour le moment.</p>
         )}
       </section>
     </div>
@@ -261,17 +385,18 @@ export default function EspaceMenage() {
                 <span><MapPin size={16} color="#4A7C59" /> {selectedNounou.quartier}</span>
                 <span><Star size={16} color="#F59E0B" fill="#F59E0B" /> {selectedNounou.note_moyenne ?? "—"} / 5</span>
                 <span><Briefcase size={16} /> {selectedNounou.experience}</span>
+                {selectedNounou.tache && <span>{selectedNounou.tache}</span>}
               </div>
               {selectedNounou.agence?.nom && (
-                <div className="detail-agence"><Shield size={16} color="#C2614F" /><span>Agence: <strong>{selectedNounou.agence.nom}</strong></span></div>
+                <div className="detail-agence"><Shield size={16} color="#F3811E" /><span>Agence: <strong>{selectedNounou.agence.nom}</strong></span></div>
               )}
               <div className="detail-tags">
                 {(selectedNounou.langues ?? []).map((l) => <span key={l} className="tag"><Languages size={12} /> {l}</span>)}
               </div>
             </div>
             <div className="detail-actions">
-              <div className="detail-prix"><span>{selectedNounou.tarif.toLocaleString()} FCFA</span><small>/ jour</small></div>
-              <button className="contact-btn" onClick={() => handleContactWhatsApp(selectedNounou.telephone)}><Phone size={20} /> Contacter</button>
+              <div className="detail-prix"><span>{selectedNounou.tarif.toLocaleString()} FCFA</span><small>/ mois</small></div>
+              <button className="contact-btn" onClick={() => handleContactWhatsApp(selectedNounou.agence?.telephone)}><Phone size={20} /> Contacter l'agence</button>
             </div>
           </div>
 
@@ -304,8 +429,7 @@ export default function EspaceMenage() {
 
   return (
     <div className="app-container">
-      {renderSidebar()}
-      <main className={`main-content ${sidebarOpen ? "with-sidebar" : ""}`}>
+      <main className="main-content">
         {showSearch ? (
           <RechercheNounou onClose={handleSearchClose} />
         ) : showDemandes ? (
@@ -344,157 +468,64 @@ export default function EspaceMenage() {
         .app-container {
           display: flex;
           min-height: 100vh;
-          background: #F5F0EB;
+          background: #F1F0EC;
           font-family: "Inter", sans-serif;
         }
 
         /* ============================================================ */
         /* SIDEBAR (DESKTOP)                                            */
         /* ============================================================ */
-        .sidebar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          height: 100vh;
-          width: 260px;
-          background: #1C1917;
-          display: flex;
-          flex-direction: column;
-          padding: 24px 16px;
-          transition: transform 0.3s ease;
-          z-index: 1000;
-          border-right: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .sidebar.closed {
-          transform: translateX(-260px);
-        }
-
-        .sidebar.open {
-          transform: translateX(0);
-        }
-
-        .sidebar-header {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding-bottom: 24px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-          margin-bottom: 24px;
-        }
-
-        .sidebar-title {
-          color: white;
-          font-size: 18px;
-          font-weight: 700;
-        }
-
-        .sidebar-nav {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          flex: 1;
-        }
-
-        .sidebar-nav button {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 12px 16px;
-          border: none;
-          border-radius: 12px;
-          background: transparent;
-          color: rgba(255, 255, 255, 0.5);
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          width: 100%;
-        }
-
-        .sidebar-nav button:hover {
-          background: rgba(255, 255, 255, 0.06);
-          color: rgba(255, 255, 255, 0.8);
-        }
-
-        .sidebar-nav button.active {
-          background: rgba(194, 97, 79, 0.15);
-          color: #C2614F;
-        }
-
-        .sidebar-nav button.active svg {
-          color: #C2614F;
-        }
-
-        .sidebar-footer {
-          padding-top: 16px;
-          border-top: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .logout-btn {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 12px 16px;
-          border: none;
-          border-radius: 12px;
-          background: transparent;
-          color: rgba(255, 255, 255, 0.4);
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          width: 100%;
-        }
-
-        .logout-btn:hover {
-          background: rgba(255, 255, 255, 0.06);
-          color: #E87A7A;
-        }
-
-        .sidebar-toggle {
-          position: absolute;
-          right: -14px;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          border: none;
-          background: #1C1917;
-          color: white;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-          transition: all 0.2s;
-        }
-
-        .sidebar-toggle:hover {
-          background: #C2614F;
-        }
-
         /* ============================================================ */
         /* MAIN CONTENT                                                 */
         /* ============================================================ */
         .main-content {
           flex: 1;
           width: 100%;
-          padding: 16px 20px 80px;
-          transition: margin-left 0.3s ease;
+          padding: 16px 20px 100px;
           min-height: 100vh;
         }
 
-        .main-content.with-sidebar {
-          margin-left: 260px;
-        }
-
         /* ============================================================ */
-        /* HEADER MOBILE                                                */
+        /* HEADER (logo + nom de l'app, en haut à gauche)               */
         /* ============================================================ */
         .mobile-header {
-          display: none;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 0 12px;
+          margin-bottom: 12px;
+        }
+
+        .mobile-logo {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .mobile-logo span {
+          font-size: 18px;
+          font-weight: 700;
+          color: #211B14;
+        }
+
+        .btn-home {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          border: 1px solid rgba(33, 27, 20, 0.1);
+          background: #FFFFFF;
+          color: #211B14;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-home:hover {
+          background: #F3811E;
+          border-color: #F3811E;
+          color: white;
         }
 
         /* ============================================================ */
@@ -512,53 +543,160 @@ export default function EspaceMenage() {
         .greeting h1 {
           font-size: 20px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
           margin-bottom: 2px;
         }
 
         .greeting p {
-          color: #78716C;
+          color: #8A867A;
           font-size: 14px;
         }
 
         /* ============================================================ */
-        /* CERCLE DE RECHERCHE                                          */
+        /* RELANCE D'AVIS À J+7                                         */
         /* ============================================================ */
-        .search-wrapper {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 16px 0 20px;
-          cursor: pointer;
+        .avis-reminder {
+          background: #FEF3C7;
+          border-radius: 16px;
+          padding: 16px;
+          margin-bottom: 16px;
         }
 
-        .search-circle {
-          width: 80px;
-          height: 80px;
+        .avis-reminder-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 13px;
+          color: #8A867A;
+          line-height: 1.4;
+        }
+
+        .avis-reminder-header img,
+        .avis-reminder-avatar-fallback {
+          width: 44px;
+          height: 44px;
           border-radius: 50%;
-          background: linear-gradient(145deg, #2D2A26 0%, #1C1917 100%);
-          border: none;
+          object-fit: cover;
+          flex-shrink: 0;
+        }
+
+        .avis-reminder-avatar-fallback {
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: all 0.3s ease;
-          box-shadow: 0 12px 40px rgba(28, 25, 23, 0.15);
+          background: #FFF3D6;
+          color: #F3811E;
+          font-weight: 700;
+          font-size: 16px;
         }
 
-        .search-circle svg {
-          color: #C2614F;
+        .avis-reminder-header strong {
+          color: #211B14;
         }
 
-        .search-circle:hover {
-          transform: scale(1.05);
-          box-shadow: 0 16px 48px rgba(28, 25, 23, 0.2);
-        }
-
-        .search-label {
-          margin-top: 8px;
-          font-size: 14px;
+        .avis-reminder-cta {
+          margin-top: 12px;
+          width: 100%;
+          padding: 10px;
+          border-radius: 10px;
+          border: none;
+          background: #F3811E;
+          color: white;
+          font-size: 13px;
           font-weight: 600;
-          color: #1C1917;
+          cursor: pointer;
+        }
+
+        .avis-reminder-form {
+          margin-top: 14px;
+        }
+
+        .avis-stars {
+          display: flex;
+          gap: 4px;
+          margin-bottom: 10px;
+        }
+
+        .avis-stars button {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 2px;
+        }
+
+        .avis-reminder-form textarea {
+          width: 100%;
+          border-radius: 10px;
+          border: 1px solid rgba(212, 184, 150, 0.3);
+          padding: 10px;
+          font-family: inherit;
+          font-size: 13px;
+          resize: vertical;
+          background: white;
+        }
+
+        .avis-reminder-actions {
+          display: flex;
+          gap: 10px;
+          margin-top: 10px;
+        }
+
+        .btn-annuler, .btn-envoyer-avis {
+          flex: 1;
+          padding: 9px;
+          border-radius: 10px;
+          border: none;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .btn-annuler {
+          background: white;
+          color: #8A867A;
+        }
+
+        .btn-envoyer-avis {
+          background: #F3811E;
+          color: white;
+        }
+
+        .btn-envoyer-avis:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        /* ============================================================ */
+        /* BARRE DE RECHERCHE                                           */
+        /* ============================================================ */
+        .search-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #FFFFFF;
+          border: 1px solid rgba(33, 27, 20, 0.1);
+          border-radius: 50px;
+          padding: 14px 20px;
+          margin: 8px 0 24px;
+          cursor: pointer;
+          box-shadow: 0 2px 10px rgba(33, 27, 20, 0.05);
+          transition: all 0.2s ease;
+        }
+
+        .search-bar:hover {
+          border-color: #F3811E;
+          box-shadow: 0 4px 16px rgba(243, 129, 30, 0.12);
+        }
+
+        .search-bar-placeholder {
+          font-size: 14px;
+          font-weight: 500;
+          color: #8A867A;
+        }
+
+        .search-bar svg {
+          color: #F3811E;
+          flex-shrink: 0;
         }
 
         /* ============================================================ */
@@ -578,13 +716,13 @@ export default function EspaceMenage() {
         .section-header h3 {
           font-size: 16px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .see-all {
           background: transparent;
           border: none;
-          color: #C2614F;
+          color: #F3811E;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
@@ -644,18 +782,18 @@ export default function EspaceMenage() {
           object-fit: cover;
           display: block;
           margin: 0 auto 6px;
-          border: 2px solid #F5F0EB;
+          border: 2px solid #F1F0EC;
         }
 
         .nounou-name {
           font-weight: 700;
           font-size: 13px;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .nounou-quartier {
           font-size: 10px;
-          color: #6B5E4F;
+          color: #5C574C;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -665,17 +803,17 @@ export default function EspaceMenage() {
         .nounou-prix-mobile {
           font-size: 12px;
           font-weight: 700;
-          color: #C2614F;
+          color: #F3811E;
           margin-top: 2px;
         }
 
         .nounou-type-mobile {
           font-size: 9px;
           font-weight: 600;
-          color: #6B5E4F;
+          color: #5C574C;
           text-transform: uppercase;
           letter-spacing: 0.3px;
-          background: #F5F0EB;
+          background: #F1F0EC;
           padding: 1px 8px;
           border-radius: 50px;
           display: inline-block;
@@ -763,7 +901,7 @@ export default function EspaceMenage() {
         .nounou-card-header h3 {
           font-size: 17px;
           font-weight: 700;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .nounou-note {
@@ -771,7 +909,7 @@ export default function EspaceMenage() {
           align-items: center;
           gap: 4px;
           font-weight: 600;
-          color: #1C1917;
+          color: #211B14;
           font-size: 13px;
         }
 
@@ -779,7 +917,7 @@ export default function EspaceMenage() {
           display: flex;
           gap: 14px;
           font-size: 12px;
-          color: #78716C;
+          color: #8A867A;
           margin-bottom: 6px;
         }
 
@@ -800,16 +938,16 @@ export default function EspaceMenage() {
           font-size: 10px;
           padding: 2px 10px;
           border-radius: 50px;
-          background: #F5F0EB;
-          color: #6B5E4F;
+          background: #F1F0EC;
+          color: #5C574C;
           display: flex;
           align-items: center;
           gap: 4px;
         }
 
         .tag-type {
-          background: #C2614F18;
-          color: #C2614F;
+          background: #F3811E18;
+          color: #F3811E;
           font-weight: 600;
         }
 
@@ -818,7 +956,7 @@ export default function EspaceMenage() {
           justify-content: space-between;
           align-items: center;
           padding-top: 10px;
-          border-top: 1px solid #F5F0EB;
+          border-top: 1px solid #F1F0EC;
         }
 
         .nounou-prix-desktop {
@@ -826,7 +964,7 @@ export default function EspaceMenage() {
           align-items: center;
           gap: 4px;
           font-weight: 700;
-          color: #C2614F;
+          color: #F3811E;
           font-size: 15px;
         }
 
@@ -835,14 +973,71 @@ export default function EspaceMenage() {
           align-items: center;
           gap: 4px;
           font-size: 11px;
-          color: #78716C;
+          color: #8A867A;
         }
 
         /* ============================================================ */
         /* BOTTOM NAV (MOBILE)                                          */
         /* ============================================================ */
         .bottom-nav {
-          display: none;
+          display: flex;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: #FFFFFF;
+          border-top: 1px solid rgba(33, 27, 20, 0.08);
+          justify-content: space-around;
+          align-items: center;
+          padding: 6px 10px;
+          z-index: 100;
+          box-shadow: 0 -2px 16px rgba(33, 27, 20, 0.06);
+        }
+
+        .bottom-nav button {
+          background: transparent;
+          border: none;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1px;
+          color: #8A867A;
+          cursor: pointer;
+          padding: 6px 14px;
+          font-size: 9px;
+          font-weight: 500;
+          transition: all 0.25s ease;
+          border-radius: 40px;
+        }
+
+        .bottom-nav button .nav-icon-wrapper {
+          width: 38px;
+          height: 38px;
+          border-radius: 50px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+        }
+
+        .bottom-nav button.active {
+          color: #211B14;
+        }
+
+        .bottom-nav button.active .nav-icon-wrapper {
+          background: rgba(243, 129, 30, 0.12);
+          color: #F3811E;
+        }
+
+        .bottom-nav button span {
+          font-size: 9px;
+          color: #8A867A;
+          letter-spacing: 0.2px;
+        }
+
+        .bottom-nav button.active span {
+          color: #211B14;
+          font-weight: 600;
         }
 
         /* ============================================================ */
@@ -854,7 +1049,7 @@ export default function EspaceMenage() {
           gap: 8px;
           background: transparent;
           border: none;
-          color: #78716C;
+          color: #8A867A;
           font-size: 14px;
           font-weight: 600;
           cursor: pointer;
@@ -863,7 +1058,7 @@ export default function EspaceMenage() {
         }
 
         .back-btn:hover {
-          color: #C2614F;
+          color: #F3811E;
         }
 
         .detail-container {
@@ -880,7 +1075,7 @@ export default function EspaceMenage() {
           align-items: flex-start;
           gap: 24px;
           padding-bottom: 20px;
-          border-bottom: 1px solid #F5F0EB;
+          border-bottom: 1px solid #F1F0EC;
         }
 
         .detail-avatar {
@@ -895,7 +1090,7 @@ export default function EspaceMenage() {
           height: 100px;
           border-radius: 50%;
           object-fit: cover;
-          border: 3px solid #F5F0EB;
+          border: 3px solid #F1F0EC;
         }
 
         .detail-avatar .badge-disponible,
@@ -915,7 +1110,7 @@ export default function EspaceMenage() {
 
         .detail-info h1 {
           font-size: 24px;
-          color: #1C1917;
+          color: #211B14;
           margin-bottom: 6px;
         }
 
@@ -924,7 +1119,7 @@ export default function EspaceMenage() {
           flex-wrap: wrap;
           gap: 16px;
           font-size: 13px;
-          color: #78716C;
+          color: #8A867A;
           margin-bottom: 6px;
         }
 
@@ -939,7 +1134,7 @@ export default function EspaceMenage() {
           align-items: center;
           gap: 6px;
           font-size: 13px;
-          color: #78716C;
+          color: #8A867A;
           margin-bottom: 6px;
         }
 
@@ -966,11 +1161,11 @@ export default function EspaceMenage() {
         .detail-prix span {
           font-size: 24px;
           font-weight: 700;
-          color: #C2614F;
+          color: #F3811E;
         }
 
         .detail-prix small {
-          color: #78716C;
+          color: #8A867A;
           font-size: 13px;
         }
 
@@ -1003,25 +1198,25 @@ export default function EspaceMenage() {
 
         .detail-description h3 {
           font-size: 16px;
-          color: #1C1917;
+          color: #211B14;
           margin-bottom: 6px;
         }
 
         .detail-description p {
-          color: #78716C;
+          color: #8A867A;
           line-height: 1.6;
           font-size: 14px;
         }
 
         .detail-avis h3 {
           font-size: 16px;
-          color: #1C1917;
+          color: #211B14;
           margin-bottom: 12px;
         }
 
         .avis-item {
           padding: 12px 16px;
-          background: #FAF7F2;
+          background: #F1F0EC;
           border-radius: 12px;
           margin-bottom: 10px;
         }
@@ -1039,7 +1234,7 @@ export default function EspaceMenage() {
 
         .avis-nom {
           font-size: 13px;
-          color: #1C1917;
+          color: #211B14;
         }
 
         .avis-note {
@@ -1048,13 +1243,13 @@ export default function EspaceMenage() {
         }
 
         .avis-commentaire {
-          color: #78716C;
+          color: #8A867A;
           font-style: italic;
           font-size: 13px;
         }
 
         .empty-avis {
-          color: #78716C;
+          color: #8A867A;
           font-style: italic;
           font-size: 14px;
         }
@@ -1063,12 +1258,7 @@ export default function EspaceMenage() {
         /* RESPONSIVE - MOBILE (<= 768px)                               */
         /* ============================================================ */
         @media (max-width: 768px) {
-          .sidebar {
-            display: none;
-          }
-
           .main-content {
-            margin-left: 0 !important;
             padding: 12px 16px 80px;
           }
 
@@ -1089,7 +1279,7 @@ export default function EspaceMenage() {
           .mobile-logo span {
             font-size: 16px;
             font-weight: 700;
-            color: #1C1917;
+            color: #211B14;
           }
 
           .mobile-actions {
@@ -1100,7 +1290,7 @@ export default function EspaceMenage() {
           .icon-btn {
             background: transparent;
             border: none;
-            color: #78716C;
+            color: #8A867A;
             cursor: pointer;
             padding: 6px;
             border-radius: 50%;
@@ -1114,7 +1304,7 @@ export default function EspaceMenage() {
 
           .icon-btn:hover {
             background: rgba(28, 25, 23, 0.06);
-            color: #1C1917;
+            color: #211B14;
           }
 
           .nounous-grid {
@@ -1123,71 +1313,6 @@ export default function EspaceMenage() {
 
           .scroll-wrapper {
             display: block;
-          }
-
-          .bottom-nav {
-            display: flex;
-            position: fixed;
-            bottom: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(28, 25, 23, 0.92);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 50px;
-            justify-content: space-around;
-            padding: 4px 10px;
-            z-index: 100;
-            box-shadow: 0 8px 40px rgba(28, 25, 23, 0.25);
-            min-width: 200px;
-            max-width: 280px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-          }
-
-          .bottom-nav button {
-            background: transparent;
-            border: none;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1px;
-            color: rgba(255, 255, 255, 0.3);
-            cursor: pointer;
-            padding: 6px 14px;
-            font-size: 9px;
-            font-weight: 500;
-            transition: all 0.25s ease;
-            border-radius: 40px;
-          }
-
-          .bottom-nav button .nav-icon-wrapper {
-            width: 38px;
-            height: 38px;
-            border-radius: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-          }
-
-          .bottom-nav button.active {
-            color: white;
-          }
-
-          .bottom-nav button.active .nav-icon-wrapper {
-            background: rgba(194, 97, 79, 0.18);
-            color: #C2614F;
-          }
-
-          .bottom-nav button span {
-            font-size: 9px;
-            color: rgba(255, 255, 255, 0.25);
-            letter-spacing: 0.2px;
-          }
-
-          .bottom-nav button.active span {
-            color: rgba(255, 255, 255, 0.6);
-            font-weight: 600;
           }
 
           /* Détail mobile */
@@ -1246,20 +1371,6 @@ export default function EspaceMenage() {
             font-size: 13px;
           }
 
-          .search-circle {
-            width: 64px;
-            height: 64px;
-          }
-
-          .search-circle svg {
-            width: 32px;
-            height: 32px;
-          }
-
-          .search-label {
-            font-size: 13px;
-          }
-
           .nounou-card-mobile {
             flex: 0 0 120px;
             padding: 10px 8px 12px;
@@ -1302,14 +1413,6 @@ export default function EspaceMenage() {
         /* RESPONSIVE - DESKTOP (>= 769px)                              */
         /* ============================================================ */
         @media (min-width: 769px) {
-          .mobile-header {
-            display: none;
-          }
-
-          .bottom-nav {
-            display: none;
-          }
-
           .scroll-wrapper {
             display: none;
           }
@@ -1325,30 +1428,12 @@ export default function EspaceMenage() {
             padding: 24px 32px 40px;
           }
 
-          .main-content.with-sidebar {
-            margin-left: 260px;
-          }
-
           .greeting h1 {
             font-size: 26px;
           }
 
           .greeting p {
             font-size: 15px;
-          }
-
-          .search-circle {
-            width: 100px;
-            height: 100px;
-          }
-
-          .search-circle svg {
-            width: 40px;
-            height: 40px;
-          }
-
-          .search-label {
-            font-size: 16px;
           }
 
           .section-header h3 {

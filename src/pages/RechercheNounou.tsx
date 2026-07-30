@@ -1,5 +1,5 @@
 // src/pages/RechercheNounou.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -12,6 +12,7 @@ import {
   Briefcase,
   Star,
   Send,
+  Ban,
 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useAuthStore } from "../store/useAuthStore";
@@ -20,11 +21,16 @@ import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
-interface AgenceResultat {
+interface NounouResultat {
   id: string;
+  agence_id: string;
   nom: string;
   quartier?: string;
+  experience?: string;
+  tache?: string;
+  tarif?: number;
   note_moyenne?: number;
+  photo_url?: string;
 }
 
 // ================================================================
@@ -46,10 +52,13 @@ interface AgenceResultat {
 //                            plein / ponctuel, qui correspond bien à
 //                            ce que la colonne `temps` représente)
 //   4. Logement           -> demandes.logement
-//   5. Résultats réels    -> agences correspondantes (RPC
-//                            rechercher_agences), avec un vrai bouton
-//                            "Envoyer une demande" qui insère dans
-//                            `demandes` (statut 'En attente').
+//   5. Résultats réels    -> nounous disponibles correspondantes (RPC
+//                            rechercher_nounous), avec un vrai bouton
+//                            "Choisir cette nounou" qui insère dans
+//                            `demandes` (statut 'En attente',
+//                            nounou_assignee_id déjà pré-rempli avec
+//                            le choix de la famille — l'agence n'a
+//                            plus qu'à confirmer la disponibilité).
 // ================================================================
 
 const BESOINS = ["Garde d'enfants", "Aide ménagère", "Mixte (Garde + Ménage)"];
@@ -59,14 +68,33 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({ quartier: "", besoin: "", temps: "", logement: "" });
-  const [resultats, setResultats] = useState<AgenceResultat[]>([]);
+  const [resultats, setResultats] = useState<NounouResultat[]>([]);
   const [demandeEnvoyeeA, setDemandeEnvoyeeA] = useState<string | null>(null);
+  const [demandeEnCoursId, setDemandeEnCoursId] = useState<string | null>(null);
+  const [demandeCreeeA, setDemandeCreeeA] = useState<number | null>(null);
+  const [secondesRestantes, setSecondesRestantes] = useState(0);
+  const DELAI_ANNULATION_SECONDES = 60;
   const totalSteps = 5;
+
+  // Décompte des secondes restantes pour pouvoir annuler la demande
+  // en cours (1 minute, cf. 0024_demandes_annulation_1min.sql : la
+  // vraie limite est imposée côté base, ce décompte n'est que
+  // l'affichage).
+  useEffect(() => {
+    if (!demandeCreeeA) return;
+    const tick = () => {
+      const ecoule = Math.floor((Date.now() - demandeCreeeA) / 1000);
+      setSecondesRestantes(Math.max(0, DELAI_ANNULATION_SECONDES - ecoule));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [demandeCreeeA]);
 
   const rechercher = useMutation({
     mutationFn: async () => {
       if (!isSupabaseConfigured) return [];
-      const { data: matches, error } = await supabase.rpc("rechercher_agences", {
+      const { data, error } = await supabase.rpc("rechercher_nounous", {
         p_quartier: formData.quartier,
         p_besoin: formData.besoin || null,
       });
@@ -80,19 +108,7 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
           logement: formData.logement,
         });
       }
-      if (!matches?.length) return [];
-      // La vue `agences_public` (0007_calibrage_affichage.sql) expose la
-      // colonne sous le nom `note` (alias de agences.note_moyenne), pas
-      // `note_moyenne` directement. Sélectionner `note_moyenne` ici
-      // provoquait un 400 côté PostgREST (colonne inexistante), qui
-      // faisait échouer toute la recherche silencieusement (pas de
-      // onError sur cette mutation à l'époque).
-      const { data, error: publicError } = await supabase
-        .from("agences_public")
-        .select("id, nom, quartier, note_moyenne:note")
-        .in("id", matches.map((a: { id: string }) => a.id));
-      if (publicError) throw publicError;
-      return data as AgenceResultat[];
+      return (data ?? []) as NounouResultat[];
     },
     onSuccess: (data) => {
       setResultats(data);
@@ -105,21 +121,50 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
   });
 
   const envoyerDemande = useMutation({
-    mutationFn: async (agenceId: string) => {
+    mutationFn: async (nounou: NounouResultat) => {
       if (!currentUser?.id) throw new Error("Vous devez être connecté.");
-      const { error } = await supabase.from("demandes").insert({
-        agence_id: agenceId,
-        menage_id: currentUser.id,
-        quartier: formData.quartier,
-        besoin: formData.besoin,
-        temps: formData.temps,
-        logement: formData.logement,
-        statut: "En attente",
-      });
+      const { data, error } = await supabase
+        .from("demandes")
+        .insert({
+          agence_id: nounou.agence_id,
+          menage_id: currentUser.id,
+          nounou_assignee_id: nounou.id,
+          quartier: formData.quartier,
+          besoin: formData.besoin,
+          temps: formData.temps,
+          logement: formData.logement,
+          statut: "En attente",
+        })
+        .select("id, date")
+        .single();
       if (error) throw error;
-      return agenceId;
+      return { nounouId: nounou.id, demandeId: data.id as string, date: data.date as string };
     },
-    onSuccess: (agenceId) => setDemandeEnvoyeeA(agenceId),
+    onSuccess: ({ nounouId, demandeId, date }) => {
+      setDemandeEnvoyeeA(nounouId);
+      setDemandeEnCoursId(demandeId);
+      setDemandeCreeeA(new Date(date).getTime());
+    },
+    onError: (err) => alert(getErrorMessage(err)),
+  });
+
+  const annulerDemande = useMutation({
+    mutationFn: async () => {
+      if (!demandeEnCoursId) return;
+      const { error } = await supabase
+        .from("demandes")
+        .update({ statut: "Annulée" })
+        .eq("id", demandeEnCoursId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // Réinitialise pour permettre à la famille de choisir une autre
+      // nounou (ou la même) juste après.
+      setDemandeEnvoyeeA(null);
+      setDemandeEnCoursId(null);
+      setDemandeCreeeA(null);
+      setSecondesRestantes(0);
+    },
     onError: (err) => alert(getErrorMessage(err)),
   });
 
@@ -251,38 +296,65 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
   const renderEtape5 = () => (
     <div className="step-content">
       <div className="step-icon"><Star size={32} strokeWidth={1.5} /></div>
-      <h2 className="step-title">Agences correspondantes</h2>
+      <h2 className="step-title">Nounous disponibles</h2>
       <p className="step-subtitle">
-        {resultats.length} agence{resultats.length !== 1 ? "s" : ""} avec des nounous disponibles à {formData.quartier}
+        {resultats.length} nounou{resultats.length !== 1 ? "s" : ""} disponible{resultats.length !== 1 ? "s" : ""} à {formData.quartier}
       </p>
       <div className="resultats-list">
-        {resultats.map((agence) => (
-          <div key={agence.id} className="resultat-card">
-            <div>
-              <h3>{agence.nom}</h3>
+        {resultats.map((nounou) => (
+          <div key={nounou.id} className="resultat-card resultat-card-nounou">
+            <div className="resultat-nounou-avatar">
+              {nounou.photo_url ? (
+                <img src={nounou.photo_url} alt={nounou.nom} />
+              ) : (
+                <div className="avatar-initials">
+                  {nounou.nom.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                </div>
+              )}
+            </div>
+            <div className="resultat-nounou-infos">
+              <h3>{nounou.nom}</h3>
               <div className="resultat-meta">
-                <span><MapPin size={12} /> {agence.quartier}</span>
-                {agence.note_moyenne != null && (
-                  <span><Star size={12} color="#F59E0B" fill="#F59E0B" /> {agence.note_moyenne}</span>
+                <span><MapPin size={12} /> {nounou.quartier}</span>
+                {nounou.experience && <span><Briefcase size={12} /> {nounou.experience}</span>}
+                {nounou.note_moyenne != null && (
+                  <span><Star size={12} color="#F59E0B" fill="#F59E0B" /> {nounou.note_moyenne}</span>
                 )}
               </div>
+              {nounou.tache && <div className="resultat-tache">{nounou.tache}</div>}
+              {nounou.tarif != null && (
+                <div className="resultat-tarif">{nounou.tarif.toLocaleString()} FCFA / mois</div>
+              )}
             </div>
-            {demandeEnvoyeeA === agence.id ? (
-              <span className="demande-envoyee">✅ Demande envoyée</span>
+            {demandeEnvoyeeA === nounou.id ? (
+              secondesRestantes > 0 ? (
+                <div className="demande-envoyee-annulable">
+                  <span className="demande-envoyee">✅ Demande envoyée</span>
+                  <button
+                    className="btn-annuler-demande"
+                    onClick={() => annulerDemande.mutate()}
+                    disabled={annulerDemande.isPending}
+                  >
+                    <Ban size={14} /> Annuler ({secondesRestantes}s)
+                  </button>
+                </div>
+              ) : (
+                <span className="demande-envoyee">✅ Demande envoyée</span>
+              )
             ) : (
               <button
                 className="btn-envoyer"
-                onClick={() => envoyerDemande.mutate(agence.id)}
+                onClick={() => envoyerDemande.mutate(nounou)}
                 disabled={envoyerDemande.isPending}
               >
-                <Send size={14} /> Envoyer une demande
+                <Send size={14} /> Choisir cette nounou
               </button>
             )}
           </div>
         ))}
         {resultats.length === 0 && (
-          <p style={{ color: "#78716C", fontSize: 14 }}>
-            Aucune agence avec une nounou disponible ne correspond à ces critères pour le moment.
+          <p style={{ color: "#8A867A", fontSize: 14 }}>
+            Aucune nounou disponible ne correspond à ces critères pour le moment.
           </p>
         )}
       </div>
@@ -341,18 +413,18 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
         /* VARIABLES - THEME NOUNOU CONNECT                             */
         /* ============================================================ */
         :root {
-          --terracotta: #C2614F;
-          --terracotta-light: #D4818A;
-          --terracotta-lighter: #F2D6D8;
-          --terracotta-pale: #F8EDEE;
+          --terracotta: #F3811E;
+          --terracotta-light: #F5A855;
+          --terracotta-lighter: #FFF3D6;
+          --terracotta-pale: #FFF7E6;
           --sauge: #4A7C59;
           --sauge-light: #6BBF6B;
-          --beige: #D4B896;
-          --beige-light: #F8F6F5;
-          --gris-fonce: #1C1917;
-          --gris-moyen: #78716C;
+          --beige: #C1631B;
+          --beige-light: #FBF8F4;
+          --gris-fonce: #211B14;
+          --gris-moyen: #8A867A;
           --blanc: #FFFFFF;
-          --shadow: 0 4px 20px rgba(28, 25, 23, 0.06);
+          --shadow: 0 4px 20px rgba(33, 27, 20, 0.06);
           --radius: 20px;
           --radius-sm: 14px;
         }
@@ -934,7 +1006,7 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
         }
 
         .btn-next:hover {
-          background: #B25545;
+          background: #C1631B;
           box-shadow: 0 4px 16px rgba(194, 97, 79, 0.3);
         }
 
@@ -1040,17 +1112,33 @@ export default function RechercheNounou({ onClose }: { onClose: () => void }) {
         .resultats-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
         .resultat-card {
           display: flex; justify-content: space-between; align-items: center;
-          padding: 16px; border: 1px solid rgba(28,25,23,0.1); border-radius: 14px; background: #FAF7F2;
+          padding: 16px; border: 1px solid rgba(28,25,23,0.1); border-radius: 14px; background: #F1F0EC;
         }
-        .resultat-card h3 { font-size: 15px; font-weight: 600; color: #1C1917; margin: 0 0 4px; }
-        .resultat-meta { display: flex; gap: 12px; font-size: 12px; color: #78716C; align-items: center; }
+        .resultat-card h3 { font-size: 15px; font-weight: 600; color: #211B14; margin: 0 0 4px; }
+        .resultat-meta { display: flex; gap: 12px; font-size: 12px; color: #8A867A; align-items: center; flex-wrap: wrap; }
         .resultat-meta span { display: flex; align-items: center; gap: 4px; }
+        .resultat-card-nounou { gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+        .resultat-nounou-avatar {
+          width: 52px; height: 52px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center; background: #FFF3D6;
+        }
+        .resultat-nounou-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .resultat-nounou-avatar .avatar-initials { color: #F3811E; font-weight: 700; font-size: 15px; }
+        .resultat-nounou-infos { flex: 1; min-width: 140px; }
+        .resultat-tache { font-size: 11px; color: #F3811E; font-weight: 600; margin-top: 4px; }
+        .resultat-tarif { font-size: 13px; color: #211B14; font-weight: 600; margin-top: 6px; }
         .btn-envoyer {
           display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px;
           background: #4A7C59; color: white; border: none; font-size: 13px; font-weight: 600; cursor: pointer;
         }
         .btn-envoyer:disabled { opacity: 0.6; cursor: not-allowed; }
         .demande-envoyee { font-size: 13px; color: #4A7C59; font-weight: 600; }
+        .demande-envoyee-annulable { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .btn-annuler-demande {
+          display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px;
+          background: #E63946; color: white; border: none; font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+        .btn-annuler-demande:disabled { opacity: 0.6; cursor: not-allowed; }
       `}</style>
     </div>
   );
