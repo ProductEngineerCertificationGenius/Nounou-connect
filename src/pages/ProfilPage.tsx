@@ -1,7 +1,7 @@
 // src/pages/ProfilPage.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, MapPin, Phone, Edit2, Save, X, ChevronRight, LogOut, Shield } from "lucide-react";
+import { User, MapPin, Phone, Edit2, Save, X, ChevronRight, LogOut, Shield, Camera } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useMenageProfil } from "../hooks/useMenage";
 import { getErrorMessage } from "../lib/errorHandler";
@@ -9,12 +9,9 @@ import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 // ================================================================
-// Réécriture, branchée sur la table réelle `menages`.
-//
-// Champ retiré : `photo_url` — n'existe pas sur `menages` (seules
-// `agences` et `nounous` ont une colonne photo, cf. 0001_schema.sql /
-// 0005_nounou_telephone.sql). L'avatar affiche désormais les initiales,
-// comme fait ailleurs dans l'app pour ce même cas (nounou sans photo).
+// `photo_url` existe désormais sur `menages` (0021_photo_menage.sql).
+// La famille peut ajouter/remplacer sa photo en mode édition ; sans
+// photo, l'avatar retombe sur les initiales comme avant.
 // ================================================================
 
 export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; onLogout: () => void }) {
@@ -23,10 +20,14 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
   const { data: profil } = useMenageProfil();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ nom: "", telephone: "", quartier: "" });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profil) {
       setFormData({ nom: profil.nom || "", telephone: profil.telephone || "", quartier: profil.quartier || "" });
+      setPreviewUrl(profil.photo_url || undefined);
     }
   }, [profil]);
 
@@ -34,23 +35,40 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handlePhotoPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!isSupabaseConfigured) return;
-      
+
       // Récupérer le userId depuis la session Supabase auth
       const { data: { session } } = await supabase.auth.getSession();
       const authUserId = session?.user?.id;
-      
+
       if (!authUserId) {
         throw new Error("Pas de session auth");
       }
-      
-      const { error } = await supabase.from("menages").update(formData).eq("user_id", authUserId);
+
+      let photo_url = profil?.photo_url;
+      if (photoFile && profil?.id) {
+        const path = `menages/${profil.id}/photo.jpg`;
+        const { error: uploadError } = await supabase.storage.from("photos").upload(path, photoFile, { upsert: true });
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from("photos").getPublicUrl(path);
+        photo_url = data.publicUrl;
+      }
+
+      const { error } = await supabase.from("menages").update({ ...formData, photo_url }).eq("user_id", authUserId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["menage", "profil", currentUser?.user_id] });
+      setPhotoFile(null);
       setIsEditing(false);
     },
     onError: (err) => alert(getErrorMessage(err)),
@@ -59,7 +77,9 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
   const handleCancel = () => {
     if (profil) {
       setFormData({ nom: profil.nom || "", telephone: profil.telephone || "", quartier: profil.quartier || "" });
+      setPreviewUrl(profil.photo_url || undefined);
     }
+    setPhotoFile(null);
     setIsEditing(false);
   };
 
@@ -93,9 +113,24 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
       </header>
 
       <div className="avatar-section">
-        <div className="avatar-wrapper">
-          <div className="avatar-initials">{initiales}</div>
-          <div className="avatar-badge"><Shield size={14} /></div>
+        <div className={`avatar-wrapper ${isEditing ? "editable" : ""}`} onClick={() => isEditing && fileInputRef.current?.click()}>
+          {previewUrl ? (
+            <img className="avatar-photo" src={previewUrl} alt={profil?.nom || "Profil"} />
+          ) : (
+            <div className="avatar-initials">{initiales}</div>
+          )}
+          {isEditing ? (
+            <div className="avatar-edit-overlay"><Camera size={18} /></div>
+          ) : (
+            <div className="avatar-badge"><Shield size={14} /></div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={handlePhotoPick}
+          />
         </div>
         <div className="avatar-info">
           <h2>{profil?.nom || "..."}</h2>
@@ -150,16 +185,16 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
         /* VARIABLES                                                    */
         /* ============================================================ */
         :root {
-          --terracotta: #C2614F;
-          --terracotta-light: #D4818A;
-          --terracotta-lighter: #F2D6D8;
-          --terracotta-pale: #F8EDEE;
+          --terracotta: #F3811E;
+          --terracotta-light: #F5A855;
+          --terracotta-lighter: #FFF3D6;
+          --terracotta-pale: #FFF7E6;
           --sauge: #4A7C59;
-          --beige-light: #F8F6F5;
-          --gris-fonce: #1C1917;
-          --gris-moyen: #78716C;
+          --beige-light: #FBF8F4;
+          --gris-fonce: #211B14;
+          --gris-moyen: #8A867A;
           --blanc: #FFFFFF;
-          --shadow: 0 4px 20px rgba(28, 25, 23, 0.06);
+          --shadow: 0 4px 20px rgba(33, 27, 20, 0.06);
           --radius: 20px;
           --radius-sm: 14px;
         }
@@ -309,7 +344,12 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
           flex-shrink: 0;
         }
 
+        .avatar-wrapper.editable {
+          cursor: pointer;
+        }
+
         .avatar-wrapper img,
+        .avatar-photo,
         .avatar-initials {
           width: 100%;
           height: 100%;
@@ -318,7 +358,8 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
           box-sizing: border-box;
         }
 
-        .avatar-wrapper img {
+        .avatar-wrapper img,
+        .avatar-photo {
           object-fit: cover;
         }
 
@@ -345,6 +386,23 @@ export default function ProfilPage({ onBack, onLogout }: { onBack: () => void; o
           align-items: center;
           justify-content: center;
           border: 2px solid var(--blanc);
+        }
+
+        .avatar-edit-overlay {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: rgba(33, 27, 20, 0.45);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        }
+
+        .avatar-wrapper.editable:hover .avatar-edit-overlay {
+          opacity: 1;
         }
 
         .avatar-info {

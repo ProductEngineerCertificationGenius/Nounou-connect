@@ -22,6 +22,50 @@ interface HistoriqueRecherche {
   date: string;
 }
 
+interface MaDemande {
+  id: string;
+  statut: "En attente" | "Assignée" | "Refusée" | "Annulée";
+  date: string;
+  nounou_assignee?: { nom: string } | null;
+  agence?: { nom: string } | null;
+}
+
+function StatutDemandeBadge({ statut }: { statut: MaDemande["statut"] }) {
+  if (statut === "Assignée") {
+    return <span className="statut-demande-badge statut-acceptee">✅ Acceptée par l'agence</span>;
+  }
+  if (statut === "Refusée") {
+    return <span className="statut-demande-badge statut-refusee">❌ Refusée par l'agence</span>;
+  }
+  if (statut === "Annulée") {
+    return <span className="statut-demande-badge statut-annulee">🚫 Annulée</span>;
+  }
+  return <span className="statut-demande-badge statut-en-attente">⏳ En attente de réponse</span>;
+}
+
+function MaDemandeCard({ item }: { item: MaDemande }) {
+  const formattedDate = new Date(item.date).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return (
+    <div className="ma-demande-card">
+      <div className="ma-demande-header">
+        <div className="ma-demande-infos">
+          <h4>{item.nounou_assignee?.nom || "Nounou"}</h4>
+          {item.agence?.nom && <span className="ma-demande-agence">Agence {item.agence.nom}</span>}
+        </div>
+        <StatutDemandeBadge statut={item.statut} />
+      </div>
+      <div className="ma-demande-footer">
+        <Calendar size={12} /><span>{formattedDate}</span>
+      </div>
+    </div>
+  );
+}
+
 function HistoriqueCard({ item }: { item: HistoriqueRecherche }) {
   const besoinLabels: Record<string, string> = {
     "Garde d'enfants": "👶",
@@ -73,6 +117,25 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
     },
   });
 
+  // Demandes envoyées à une agence pour une nounou précise (table
+  // `demandes`, différente de l'historique de recherche ci-dessus).
+  // On rafraîchit régulièrement pour que la famille voie sans
+  // recharger la page quand l'agence accepte ou refuse sa demande.
+  const { data: mesDemandes } = useQuery({
+    queryKey: ["demandes", "menage", currentUser?.id],
+    enabled: Boolean(currentUser?.id) && isSupabaseConfigured,
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("demandes")
+        .select("id, statut, date, nounou_assignee:nounous!nounou_assignee_id(nom), agence:agences(nom)")
+        .eq("menage_id", currentUser!.id)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data as unknown as MaDemande[];
+    },
+  });
+
   const filteredHistorique = (historique ?? []).filter(
     (item) =>
       item.quartier.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -98,6 +161,17 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
         </div>
         <div className="header-right"><span className="badge-count">{(historique ?? []).length}</span></div>
       </header>
+
+      {(mesDemandes ?? []).length > 0 && (
+        <div className="mes-demandes-section">
+          <h3 className="section-titre">🙋 Vos demandes de nounous</h3>
+          <div className="ma-demande-list">
+            {(mesDemandes ?? []).map((item) => <MaDemandeCard key={item.id} item={item} />)}
+          </div>
+        </div>
+      )}
+
+      <h3 className="section-titre">Historique des recherches</h3>
 
       <div className="stats-row">
         <div className="stat-item">
@@ -134,16 +208,16 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
         /* VARIABLES                                                    */
         /* ============================================================ */
         :root {
-          --terracotta: #C2614F;
-          --terracotta-light: #D4818A;
-          --terracotta-lighter: #F2D6D8;
-          --terracotta-pale: #F8EDEE;
+          --terracotta: #F3811E;
+          --terracotta-light: #F5A855;
+          --terracotta-lighter: #FFF3D6;
+          --terracotta-pale: #FFF7E6;
           --sauge: #4A7C59;
-          --beige-light: #F8F6F5;
-          --gris-fonce: #1C1917;
-          --gris-moyen: #78716C;
+          --beige-light: #FBF8F4;
+          --gris-fonce: #211B14;
+          --gris-moyen: #8A867A;
           --blanc: #FFFFFF;
-          --shadow: 0 4px 20px rgba(28, 25, 23, 0.06);
+          --shadow: 0 4px 20px rgba(33, 27, 20, 0.06);
           --radius: 20px;
           --radius-sm: 14px;
         }
@@ -294,6 +368,93 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
         }
 
         /* ============================================================ */
+        /* MES DEMANDES (statut agence : en attente / acceptée / refusée) */
+        /* ============================================================ */
+        .section-titre {
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--gris-fonce);
+          margin: 20px 0 10px;
+        }
+
+        .mes-demandes-section {
+          margin-bottom: 8px;
+        }
+
+        .ma-demande-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .ma-demande-card {
+          background: var(--blanc);
+          border-radius: var(--radius-sm);
+          box-shadow: var(--shadow);
+          padding: 14px 16px;
+        }
+
+        .ma-demande-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .ma-demande-infos h4 {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 700;
+          color: var(--gris-fonce);
+        }
+
+        .ma-demande-agence {
+          font-size: 12px;
+          color: var(--gris-moyen);
+        }
+
+        .statut-demande-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 12px;
+          border-radius: 50px;
+          font-size: 11px;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .statut-en-attente {
+          background: #FEF3C7;
+          color: #92400E;
+        }
+
+        .statut-acceptee {
+          background: #D1FAE5;
+          color: #065F46;
+        }
+
+        .statut-refusee {
+          background: #FEE2E2;
+          color: #991B1B;
+        }
+
+        .statut-annulee {
+          background: #E5E7EB;
+          color: #4B5563;
+        }
+
+        .ma-demande-footer {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 8px;
+          font-size: 11px;
+          color: var(--gris-moyen);
+        }
+
+        /* ============================================================ */
         /* LISTE                                                        */
         /* ============================================================ */
         .historique-list {
@@ -413,7 +574,7 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
         }
 
         .btn-lancer-recherche:hover {
-          background: #B25545;
+          background: #C1631B;
           box-shadow: 0 4px 16px rgba(194, 97, 79, 0.3);
         }
 
