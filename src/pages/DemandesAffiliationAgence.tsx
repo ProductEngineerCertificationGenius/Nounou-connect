@@ -79,7 +79,7 @@ function DemandeAffiliationCard({
       {nounou?.telephone && (
         <button
           className="btn-whatsapp"
-          onClick={() => window.open(`https://wa.me/${nounou.telephone.replace(/[^0-9]/g, "")}`, "_blank")}
+          onClick={() => window.open(`https://wa.me/225${nounou.telephone.replace(/[^0-9]/g, "").replace(/^0+/, "")}`, "_blank")}
         >
           Contacter sur WhatsApp
         </button>

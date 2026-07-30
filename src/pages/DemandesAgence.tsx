@@ -86,6 +86,7 @@ function DemandeCard({
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showRefuserConfirm, setShowRefuserConfirm] = useState(false);
   const [selectedNounou, setSelectedNounou] = useState(demande.nounou_assignee?.id ?? "");
 
   useEffect(() => {
@@ -214,11 +215,7 @@ function DemandeCard({
               </button>
               <button
                 className="btn-refuser"
-                onClick={() => {
-                  if (window.confirm("Refuser cette demande ? Cette action est définitive.")) {
-                    onRefuser(demande.id);
-                  }
-                }}
+                onClick={() => setShowRefuserConfirm(true)}
                 disabled={isRefusing}
               >
                 <X size={14} /> Refuser
@@ -297,6 +294,33 @@ function DemandeCard({
           </div>
         </div>
       )}
+
+      {showRefuserConfirm && (
+        <div className="assign-modal-overlay" onClick={() => setShowRefuserConfirm(false)}>
+          <div className="assign-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="assign-modal-header">
+              <h4>Refuser cette demande</h4>
+              <button className="assign-modal-close" onClick={() => setShowRefuserConfirm(false)}><X size={18} /></button>
+            </div>
+            <div className="assign-modal-body">
+              <p>Êtes-vous sûr(e) de vouloir refuser la demande de <strong>{demande.menage?.nom || "ce ménage"}</strong> ? Cette action est définitive.</p>
+            </div>
+            <div className="assign-modal-footer">
+              <button className="btn-cancel-assign" onClick={() => setShowRefuserConfirm(false)}>Annuler</button>
+              <button
+                className="btn-refuser-confirm"
+                onClick={() => {
+                  setShowRefuserConfirm(false);
+                  onRefuser(demande.id);
+                }}
+                disabled={isRefusing}
+              >
+                {isRefusing ? "Refus en cours..." : "❌ Refuser"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -320,7 +344,7 @@ export default function DemandesAgence({
 
   // Récupérer toutes les demandes
   const { data: demandes, isLoading } = useQuery({
-    queryKey: ["demandes", "agence", agenceId],
+    queryKey: ["demandes", "agence", agenceId, "detail"],
     enabled: Boolean(agenceId) && isSupabaseConfigured,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -381,7 +405,7 @@ export default function DemandesAgence({
 
   const handleContacter = (telephone?: string) => {
     if (!telephone) return;
-    window.open(`https://wa.me/${telephone.replace(/[^0-9]/g, "")}`, "_blank");
+    window.open(`https://wa.me/225${telephone.replace(/[^0-9]/g, "").replace(/^0+/, "")}`, "_blank");
   };
 
   const handleAssigner = (demandeIdToAssign: string, nounouId: string) => {
@@ -1217,6 +1241,28 @@ export default function DemandesAgence({
         }
 
         .btn-confirm-assign:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .btn-refuser-confirm {
+          padding: 10px 24px;
+          background: #DC2626;
+          border: none;
+          border-radius: 50px;
+          font-size: 14px;
+          font-weight: 600;
+          color: white;
+          cursor: pointer;
+          transition: all 0.25s ease;
+        }
+
+        .btn-refuser-confirm:hover:not(:disabled) {
+          background: #B91C1C;
+          box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-refuser-confirm:disabled {
           opacity: 0.5;
           cursor: not-allowed;
         }

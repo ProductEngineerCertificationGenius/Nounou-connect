@@ -39,7 +39,7 @@ interface NounouAffichee {
   telephone: string;
   note_moyenne?: number;
   photo_url?: string;
-  agence?: { nom: string };
+  agence?: { nom: string; telephone?: string };
 }
 
 interface Avis {
@@ -92,7 +92,7 @@ export default function EspaceMenage() {
         
         const { data, error } = await supabase
           .from("nounous_public")
-          .select("*, agence:agences(nom)")
+          .select("*, agence:agences(nom, telephone)")
           .eq("disponible", true)
           // Une nounou sans agence (auto-inscription, agence_id NULL,
           // cf. 0012_nounou_self_insert.sql) ne doit pas apparaître ici :
@@ -194,8 +194,12 @@ export default function EspaceMenage() {
     setSelectedNounouId(null);
   };
 
-  const handleContactWhatsApp = (telephone: string) => {
-    window.open(`https://wa.me/${telephone.replace(/[^0-9]/g, "")}`, "_blank");
+  const handleContactWhatsApp = (telephone?: string) => {
+    if (!telephone) {
+      alert("Numéro de l'agence indisponible pour le moment.");
+      return;
+    }
+    window.open(`https://wa.me/225${telephone.replace(/[^0-9]/g, "").replace(/^0+/, "")}`, "_blank");
   };
 
   // Un seul point d'entrée pour changer d'onglet : `activeTab` (utilisé
@@ -392,7 +396,7 @@ export default function EspaceMenage() {
             </div>
             <div className="detail-actions">
               <div className="detail-prix"><span>{selectedNounou.tarif.toLocaleString()} FCFA</span><small>/ mois</small></div>
-              <button className="contact-btn" onClick={() => handleContactWhatsApp(selectedNounou.telephone)}><Phone size={20} /> Contacter</button>
+              <button className="contact-btn" onClick={() => handleContactWhatsApp(selectedNounou.agence?.telephone)}><Phone size={20} /> Contacter l'agence</button>
             </div>
           </div>
 

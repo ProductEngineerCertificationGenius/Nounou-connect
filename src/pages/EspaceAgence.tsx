@@ -133,14 +133,6 @@ function DemandeItem({ demande, onVoir }: { demande: any; onVoir: (id: string) =
 }
 
 function RelationItem({ item }: { item: any }) {
-  const handleDemanderAvis = (phone?: string, nom?: string) => {
-    if (!phone) return;
-    const message = encodeURIComponent(
-      `Bonjour ${nom || "Ménage"},\n\nJe suis ${item.nounouAssignee || "l'agence"} qui vous a accompagné pour la garde de vos enfants.\n\nPourriez-vous prendre quelques instants pour laisser un avis sur la plateforme Nounou Connect ? Votre retour est très important pour nous.\n\nMerci d'avance ! 🙏`
-    );
-    window.open(`https://wa.me/${phone.replace(/[^0-9]/g, "")}?text=${message}`, "_blank");
-  };
-
   return (
     <div className="relation-item">
       <div className="relation-info">
@@ -150,9 +142,6 @@ function RelationItem({ item }: { item: any }) {
         <span className="relation-quartier"><MapPin size={12} /> {item.quartier}</span>
         <span className="relation-date"><Calendar size={12} /> {new Date(item.date).toLocaleDateString("fr-FR")}</span>
       </div>
-      <button className="btn-demander-avis" onClick={() => handleDemanderAvis(item.menage_telephone, item.menage)}>
-        <MessageSquare size={14} /> Demander un avis
-      </button>
     </div>
   );
 }
@@ -1126,26 +1115,6 @@ export default function EspaceAgence() {
           gap: 3px;
         }
 
-        .btn-demander-avis {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 5px 14px;
-          background: #4A7C59;
-          color: white;
-          border: none;
-          border-radius: 50px;
-          font-weight: 600;
-          font-size: 11px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-demander-avis:hover {
-          background: #3A6248;
-          transform: scale(1.02);
-        }
-
         /* ============================================================ */
         /* AVIS                                                         */
         /* ============================================================ */
@@ -1387,11 +1356,6 @@ export default function EspaceAgence() {
           .relation-item {
             flex-direction: column;
             align-items: stretch;
-          }
-
-          .btn-demander-avis {
-            width: 100%;
-            justify-content: center;
           }
 
           .welcome-section-mini {
