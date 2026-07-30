@@ -470,7 +470,7 @@ export default function ConnexionPage() {
         }
 
         .back-to-choice:hover {
-          color: #C2614F;
+          color: #F9940E;
         }
 
         .profil-selector {
@@ -497,9 +497,9 @@ export default function ConnexionPage() {
         }
 
         .profil-option.active {
-          border-color: #C2614F;
-          background: #C2614F08;
-          color: #C2614F;
+          border-color: #F9940E;
+          background: #F9940E08;
+          color: #F9940E;
         }
 
         .nounou-choice {
@@ -551,7 +551,7 @@ export default function ConnexionPage() {
         }
 
         .nounou-choice-btn.without-agence:hover {
-          border-color: #C2614F;
+          border-color: #F9940E;
           background: #F8EDEE;
         }
 
@@ -581,7 +581,7 @@ export default function ConnexionPage() {
         }
 
         .nounou-choice-back:hover {
-          color: #C2614F;
+          color: #F9940E;
         }
 
         .connexion-form {
@@ -615,7 +615,7 @@ export default function ConnexionPage() {
         }
 
         .form-group input:focus {
-          border-color: #C2614F;
+          border-color: #F9940E;
         }
 
         .form-group input::placeholder {
@@ -636,7 +636,7 @@ export default function ConnexionPage() {
         }
 
         .pin-icon {
-          color: #C2614F;
+          color: #F9940E;
         }
 
         .pin-container {
@@ -661,7 +661,7 @@ export default function ConnexionPage() {
         }
 
         .pin-input:focus {
-          border-color: #C2614F;
+          border-color: #F9940E;
         }
 
         .pin-toggle {
@@ -685,7 +685,7 @@ export default function ConnexionPage() {
         }
 
         .forgot-password a:hover {
-          color: #C2614F;
+          color: #F9940E;
           text-decoration: underline;
         }
 
@@ -694,7 +694,7 @@ export default function ConnexionPage() {
           padding: 12px 16px;
           background: #F8EDEE;
           border-radius: 12px;
-          border: 1px solid rgba(194,97,79,0.12);
+          border: 1px solid rgba(249,148,14,0.12);
           text-align: center;
         }
 
@@ -721,7 +721,7 @@ export default function ConnexionPage() {
         }
 
         .submit-button {
-          background: #C2614F;
+          background: linear-gradient(90deg, #FFC408 0%, #F9940E 100%);
           color: white;
           border: none;
           padding: 16px;
@@ -729,12 +729,12 @@ export default function ConnexionPage() {
           font-size: clamp(16px, 1vw, 17px);
           font-weight: 700;
           cursor: pointer;
-          transition: background 0.2s;
+          transition: opacity 0.2s, transform 0.2s;
           margin-top: 4px;
         }
 
         .submit-button:hover {
-          background: #B25545;
+          opacity: 0.9;
         }
 
         .submit-button:disabled {
@@ -750,7 +750,7 @@ export default function ConnexionPage() {
         }
 
         .signup-link a {
-          color: #C2614F;
+          color: #F9940E;
           font-weight: 600;
           text-decoration: none;
           cursor: pointer;
