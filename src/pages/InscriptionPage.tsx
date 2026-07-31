@@ -208,9 +208,9 @@ export default function InscriptionPage() {
         <p className="inscription-subtitle">Choisissez votre profil pour commencer</p>
         <div className="profil-grid">
           {[
-            { id: "menage" as const, bg: "#4A7C59", icon: <Home size={28} />, titre: "Ménage", sub: "Je cherche" },
-            { id: "agence" as const, bg: "#C2614F", icon: <Building2 size={28} />, titre: "Agence", sub: "Je gère" },
-            { id: "nounou" as const, bg: "#D4B896", icon: <UserCheck size={28} />, titre: "Nounou", sub: "Rejoindre" },
+            { id: "menage" as const, bg: "linear-gradient(90deg, #FFC408 0%, #F9940E 100%)", icon: <Home size={28} />, titre: "Ménage", sub: "Je cherche" },
+            { id: "agence" as const, bg: "#d4d3d1", icon: <Building2 size={28} />, titre: "Agence", sub: "Je gère" },
+            { id: "nounou" as const, bg: "#F3811E", icon: <UserCheck size={28} />, titre: "Nounou", sub: "Rejoindre" },
           ].map((c) => (
             <button
               key={c.id}
