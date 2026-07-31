@@ -83,7 +83,7 @@ export default function ConnexionPage() {
           setNounouMode(nounouMode); // "avec-agence" ou "sans-agence"
           setNounouIdentifiant(null); // ❌ Pas d'identifiant
           setProfileType("nounou");
-          navigate("/");
+          navigate(PROFILE_LANDING.nounou);
         }
         setIsLoading(false);
         return;
@@ -111,7 +111,7 @@ export default function ConnexionPage() {
 
       if (result.row) {
         setProfileType(selectedProfil);
-        navigate("/");
+        navigate(PROFILE_LANDING[selectedProfil]);
       }
     } catch (err) {
       setErrorMessage(getErrorMessage(err));

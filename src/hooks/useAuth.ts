@@ -59,6 +59,21 @@ async function fetchOrClaimProfile(
   return data;
 }
 
+// Vérification PURE (aucun insert/RPC déclenché) : sert uniquement à
+// distinguer, dans la branche "already registered" de useInscription,
+// une vraie inscription en double (fiche déjà complète) d'une
+// inscription précédemment interrompue (compte Auth créé mais fiche
+// jamais insérée). nounou_self_register et claim_nounou_profile étant
+// tous deux idempotents côté SQL, on ne peut pas se fier à leur retour
+// pour faire cette distinction : ils renverraient une fiche existante
+// sans jamais signaler qu'elle existait déjà.
+async function checkExistingProfileRow(profileType: ProfileType, userId: string): Promise<ProfileRow | null> {
+  const table = PROFILE_TABLES[profileType];
+  const { data, error } = await supabase.from(table).select("*").eq("user_id", userId).single();
+  if (error) return null;
+  return data;
+}
+
 // ===== INSCRIPTION / ACTIVATION (création directe du compte + PIN) =====
 export function useInscription() {
   const { setUser, setProfileType } = useAuthStore();
@@ -124,6 +139,20 @@ export function useInscription() {
             // S'assurer que la session est bien définie
             if (signInData.session) {
               await supabase.auth.setSession(signInData.session);
+            }
+
+            // ⚠️ Vérification AVANT toute création : si une fiche complète
+            // existe déjà pour cet utilisateur, ce n'est pas une inscription
+            // interrompue à terminer mais un vrai doublon (même téléphone +
+            // même PIN qu'un compte déjà enregistré). Sans ce contrôle, on
+            // se contentait de renvoyer la fiche existante comme si
+            // l'inscription venait de réussir, sans jamais prévenir
+            // l'utilisateur qu'aucun nouveau compte n'avait été créé.
+            const existingRow = await checkExistingProfileRow(profileType, signInData.user.id);
+            if (existingRow) {
+              throw new Error(
+                "Un compte existe déjà avec ce numéro. Veuillez vous connecter à la place."
+              );
             }
             
             // Chercher ou créer la fiche

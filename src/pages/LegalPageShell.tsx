@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
 
+
 interface LegalPageShellProps {
   title: string;
   updatedAt: string;
