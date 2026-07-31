@@ -1,7 +1,7 @@
 // src/pages/DemandesPage.tsx
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, MapPin, Calendar, ChevronRight, Clock, Search } from "lucide-react";
+import { FileText, MapPin, Calendar, ChevronRight, ChevronLeft, Clock, Search } from "lucide-react";
 import { Logo } from "../components/Logo";
 import { useAuthStore } from "../store/useAuthStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
@@ -99,9 +99,49 @@ function HistoriqueCard({ item }: { item: HistoriqueRecherche }) {
   );
 }
 
+const PAGE_SIZE = 6;
+
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="pagination">
+      <button
+        className="pagination-btn"
+        onClick={() => onChange(page - 1)}
+        disabled={page === 1}
+        aria-label="Page précédente"
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <span className="pagination-info">
+        Page {page} / {totalPages}
+      </span>
+      <button
+        className="pagination-btn"
+        onClick={() => onChange(page + 1)}
+        disabled={page === totalPages}
+        aria-label="Page suivante"
+      >
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  );
+}
+
 export default function DemandesPage({ onBack }: { onBack: () => void }) {
   const currentUser = useAuthStore((s) => s.user);
   const [searchTerm, setSearchTerm] = useState("");
+  const [pageHistorique, setPageHistorique] = useState(1);
+  const [pageDemandes, setPageDemandes] = useState(1);
 
   const { data: historique } = useQuery({
     queryKey: ["recherches", "historique", currentUser?.id],
@@ -142,6 +182,25 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
       item.besoin.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalPagesHistorique = Math.max(1, Math.ceil(filteredHistorique.length / PAGE_SIZE));
+  const currentPageHistorique = Math.min(pageHistorique, totalPagesHistorique);
+  const paginatedHistorique = filteredHistorique.slice(
+    (currentPageHistorique - 1) * PAGE_SIZE,
+    currentPageHistorique * PAGE_SIZE
+  );
+
+  const totalPagesDemandes = Math.max(1, Math.ceil((mesDemandes ?? []).length / PAGE_SIZE));
+  const currentPageDemandes = Math.min(pageDemandes, totalPagesDemandes);
+  const paginatedDemandes = (mesDemandes ?? []).slice(
+    (currentPageDemandes - 1) * PAGE_SIZE,
+    currentPageDemandes * PAGE_SIZE
+  );
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setPageHistorique(1); // Toute nouvelle recherche repart de la page 1
+  };
+
   const renderEmptyState = () => (
     <div className="empty-state">
       <div className="empty-icon"><FileText size={48} strokeWidth={1.5} /></div>
@@ -166,8 +225,9 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
         <div className="mes-demandes-section">
           <h3 className="section-titre">🙋 Vos demandes de nounous</h3>
           <div className="ma-demande-list">
-            {(mesDemandes ?? []).map((item) => <MaDemandeCard key={item.id} item={item} />)}
+            {paginatedDemandes.map((item) => <MaDemandeCard key={item.id} item={item} />)}
           </div>
+          <Pagination page={currentPageDemandes} totalPages={totalPagesDemandes} onChange={setPageDemandes} />
         </div>
       )}
 
@@ -192,16 +252,18 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
 
       <div className="search-bar">
         <Search size={18} />
-        <input type="text" placeholder="Filtrer par quartier ou type..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <input type="text" placeholder="Filtrer par quartier ou type..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} />
       </div>
 
       <div className="historique-list">
         {filteredHistorique.length > 0 ? (
-          filteredHistorique.map((item) => <HistoriqueCard key={item.id} item={item} />)
+          paginatedHistorique.map((item) => <HistoriqueCard key={item.id} item={item} />)
         ) : (
           renderEmptyState()
         )}
       </div>
+
+      <Pagination page={currentPageHistorique} totalPages={totalPagesHistorique} onChange={setPageHistorique} />
 
       <style>{`
         /* ============================================================ */
@@ -452,6 +514,51 @@ export default function DemandesPage({ onBack }: { onBack: () => void }) {
           margin-top: 8px;
           font-size: 11px;
           color: var(--gris-moyen);
+        }
+
+        /* ============================================================ */
+        /* PAGINATION                                                   */
+        /* ============================================================ */
+        .pagination {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 14px;
+          margin-top: 18px;
+        }
+
+        .pagination-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          border: 1px solid rgba(212, 184, 150, 0.3);
+          background: var(--blanc);
+          color: var(--gris-fonce);
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: var(--shadow);
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+          background: var(--terracotta-lighter);
+          border-color: var(--terracotta);
+          color: var(--terracotta);
+        }
+
+        .pagination-btn:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+        }
+
+        .pagination-info {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--gris-moyen);
+          min-width: 90px;
+          text-align: center;
         }
 
         /* ============================================================ */
