@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, User, MessageCircle, Building2 } from "lucide-react";
 import { Logo } from "../components/Logo";
-import { useConnexion, useDemanderResetPin } from "../hooks/useAuth";
+import { useConnexion } from "../hooks/useAuth";
 import { PIN_LENGTH } from "../lib/pin";
 import { getErrorMessage } from "../lib/errorHandler";
 import { useAuthStore, type ProfileType } from "../store/useAuthStore";
@@ -32,7 +32,6 @@ export default function ConnexionPage() {
   const isAgence = selectedProfil === "agence";
 
   const connexion = useConnexion();
-  const demanderReset = useDemanderResetPin();
 
   const handlePinChange = (index: number, value: string) => {
     if (value.length > 1 || !/^\d*$/.test(value)) return;
