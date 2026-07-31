@@ -1,12 +1,32 @@
 <!-- public/offline.html -->
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
-  <meta name="theme-color" content="#C2614F" />
+  <meta name="theme-color" content="#F7A82A" />
   <title>Hors ligne - Nounou Connect</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
   <style>
+    :root {
+      --sable: #FBF3EA;
+      --sable-deep: #F3E6D8;
+      --argile: #F7A82A;
+      --argile-dark: #D98A12;
+      --argile-tint: #FDECC8;
+      --encre: #3D2B1F;
+      --encre-soft: #6B5744;
+      --muted: #9C8A76;
+      --or-bg: #FBF0DC;
+      --line: #E8DCC9;
+      --white: #FFFFFF;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -14,8 +34,8 @@
     }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #FAF7F2;
+      font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--sable);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -26,14 +46,14 @@
     }
 
     .offline-container {
-      background: white;
+      background: var(--white);
       border-radius: 32px;
       padding: 48px 32px 40px;
       max-width: 420px;
       width: 100%;
       text-align: center;
-      box-shadow: 0 24px 80px rgba(28, 25, 23, 0.06);
-      border: 1px solid rgba(212, 184, 150, 0.12);
+      box-shadow: 0 24px 80px rgba(61, 43, 31, 0.08);
+      border: 1px solid var(--line);
       animation: fadeIn 0.5s ease;
     }
 
@@ -42,6 +62,7 @@
         opacity: 0;
         transform: translateY(20px);
       }
+
       to {
         opacity: 1;
         transform: translateY(0);
@@ -61,34 +82,58 @@
     }
 
     .offline-logo span {
+      font-family: 'Fraunces', serif;
       font-size: 18px;
-      font-weight: 700;
-      color: #1C1917;
+      font-weight: 600;
+      color: var(--encre);
+    }
+
+    .offline-icon-wrap {
+      width: 88px;
+      height: 88px;
+      margin: 0 auto 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: conic-gradient(from 180deg, var(--argile-tint), var(--or-bg), var(--sable-deep), var(--argile-tint));
+      animation: breathe 4.5s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(247, 168, 42, .18);
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px rgba(247, 168, 42, 0);
+      }
     }
 
     .offline-icon {
-      font-size: 72px;
-      margin-bottom: 16px;
+      font-size: 40px;
       display: block;
     }
 
     .offline-title {
-      font-family: "'DM Serif Display', serif";
+      font-family: 'Fraunces', serif;
       font-size: 28px;
       font-weight: 700;
-      color: #1C1917;
+      color: var(--encre);
       margin-bottom: 8px;
     }
 
     .offline-subtitle {
-      color: #78716C;
+      color: var(--encre-soft);
       font-size: 15px;
       line-height: 1.7;
       margin-bottom: 8px;
     }
 
     .offline-hint {
-      color: #B8A89A;
+      color: var(--muted);
       font-size: 13px;
       line-height: 1.6;
       margin-bottom: 28px;
@@ -99,22 +144,24 @@
       align-items: center;
       justify-content: center;
       gap: 10px;
-      background: #C2614F;
-      color: white;
+      background: var(--argile);
+      color: var(--white);
       border: none;
       padding: 14px 36px;
       border-radius: 50px;
+      font-family: 'Public Sans', sans-serif;
       font-size: 15px;
       font-weight: 700;
       cursor: pointer;
       transition: all 0.25s ease;
       width: 100%;
+      box-shadow: 0 6px 16px rgba(247, 168, 42, .3);
     }
 
     .btn-retry:hover {
-      background: #B25545;
+      background: var(--argile-dark);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(194, 97, 79, 0.25);
+      box-shadow: 0 10px 22px rgba(217, 138, 18, .35);
     }
 
     .btn-retry:active {
@@ -124,20 +171,20 @@
     .offline-footer {
       margin-top: 24px;
       padding-top: 20px;
-      border-top: 1px solid rgba(212, 184, 150, 0.15);
+      border-top: 1px solid var(--line);
       display: flex;
       justify-content: center;
       align-items: center;
       gap: 12px;
       font-size: 12px;
-      color: #D4B896;
+      color: var(--muted);
     }
 
     .offline-footer .dot {
       width: 4px;
       height: 4px;
       border-radius: 50%;
-      background: #D4B896;
+      background: var(--muted);
     }
 
     @media (max-width: 480px) {
@@ -145,15 +192,24 @@
         padding: 32px 20px 28px;
         border-radius: 24px;
       }
-      .offline-icon {
-        font-size: 56px;
+
+      .offline-icon-wrap {
+        width: 72px;
+        height: 72px;
       }
+
+      .offline-icon {
+        font-size: 32px;
+      }
+
       .offline-title {
         font-size: 24px;
       }
+
       .offline-subtitle {
         font-size: 14px;
       }
+
       .btn-retry {
         padding: 12px 24px;
         font-size: 14px;
@@ -164,36 +220,50 @@
       .offline-container {
         padding: 24px 16px 20px;
       }
-      .offline-icon {
-        font-size: 44px;
+
+      .offline-icon-wrap {
+        width: 60px;
+        height: 60px;
       }
+
+      .offline-icon {
+        font-size: 26px;
+      }
+
       .offline-title {
         font-size: 20px;
       }
+
       .offline-logo span {
         font-size: 15px;
       }
     }
   </style>
 </head>
+
 <body>
   <div class="offline-container">
 
-    <!-- LOGO -->
+    <!-- LOGO : brand-mark identique à la topbar de l'app (carré arrondi, dégradé argile, "N" en Fraunces) -->
     <div class="offline-logo">
       <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="40" height="40" rx="11" fill="#C2614F" />
-        <circle cx="13" cy="11" r="4.5" fill="white" />
-        <path d="M6 28c0-5 3.5-8.5 7-8.5" stroke="white" stroke-width="2.5" stroke-linecap="round" />
-        <circle cx="27" cy="13" r="3.5" fill="rgba(255,255,255,0.7)" />
-        <path d="M34 28c0-4 -2.8-6.5-6-7" stroke="rgba(255,255,255,0.7)" stroke-width="2.2" stroke-linecap="round" />
-        <path d="M19.5 21.5 C19.5 19.5 17 18 17 20.5 C17 22.5 19.5 24.5 19.5 24.5 C19.5 24.5 22 22.5 22 20.5 C22 18 19.5 19.5 19.5 21.5Z" fill="white" />
+        <defs>
+          <linearGradient id="brandGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#F7A82A" />
+            <stop offset="1" stop-color="#D98A12" />
+          </linearGradient>
+        </defs>
+        <rect width="40" height="40" rx="11" fill="url(#brandGrad)" />
+        <text x="20" y="27" text-anchor="middle" font-family="Fraunces, serif" font-weight="700" font-size="19"
+          fill="#FFFFFF">N</text>
       </svg>
       <span>Nounou Connect</span>
     </div>
 
     <!-- ICONE -->
-    <span class="offline-icon">📡</span>
+    <div class="offline-icon-wrap">
+      <span class="offline-icon">📡</span>
+    </div>
 
     <!-- TEXTE -->
     <h1 class="offline-title">Vous êtes hors ligne</h1>
@@ -220,4 +290,5 @@
 
   </div>
 </body>
+
 </html>

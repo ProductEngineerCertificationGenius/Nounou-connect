@@ -146,8 +146,19 @@ export default defineConfig({
             },
           },
         ],
-        navigateFallback: 'offline.html',
-        navigateFallbackAllowlist: [/^\/$/, /^\/inscription/, /^\/connexion/, /^\/espace-.*/],
+        // IMPORTANT : le fallback de navigation d'une SPA doit pointer vers
+        // index.html (pour laisser react-router-dom gérer le routing côté
+        // client au rechargement d'une route comme /espace-nounou), et non
+        // vers offline.html. offline.html reste précaché (cf. includeAssets
+        // ci-dessus) et peut être affiché manuellement par l'app si besoin,
+        // mais ne doit pas être LE fallback de navigation : sinon le service
+        // worker sert la page "hors ligne" à chaque reload d'une route non
+        // précachée, même avec une connexion active (bug reproduit sur
+        // Netlify : tout reload hors de "/" affichait "Vous êtes hors
+        // ligne"). Pas de navigateFallbackAllowlist : on couvre TOUTES les
+        // routes de l'app (comme le redirect Netlify /* -> /index.html),
+        // pas seulement inscription/connexion/espace-*.
+        navigateFallback: 'index.html',
       },
       devOptions: {
         enabled: false, // ✅ DÉSACTIVÉ EN DÉVELOPPEMENT - Plus de page "hors ligne"
